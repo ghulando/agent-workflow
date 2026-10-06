@@ -1,0 +1,7 @@
+{
+  "name": "agent-workflow",
+  "version": "0.0.1",
+  "description": "Shared development workflow and guards for Pi, Claude Code and Codex",
+  "skills": "./skills/",
+  "hooks": "./hooks/codex.json"
+}

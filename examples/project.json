@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "protectedBranches": [
+    "main",
+    "master"
+  ],
+  "protectedPaths": [
+    "scripts/**",
+    ".github/**"
+  ],
+  "taskFiles": [
+    "docs/tasks/**.md"
+  ],
+  "doneMarker": "**Status:** done.",
+  "gate": [
+    "npm",
+    "test"
+  ],
+  "skillRoots": [
+    ".agents/skills"
+  ],
+  "requiredSkills": [],
+  "readCommands": [],
+  "extensions": [],
+  "workflow": {
+    "baseBranch": "main",
+    "taskDirectory": "docs/tasks",
+    "requireReview": true,
+    "reviewers": {
+      "claude": {},
+      "codex": {}
+    }
+  }
+}

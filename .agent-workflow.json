@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "protectedPaths": [
+    "scripts/**",
+    ".github/**",
+    "hooks/**"
+  ],
+  "gate": [
+    "sh",
+    "-c",
+    "npm run format:check && npm test && npm run verify-install && npm pack --dry-run"
+  ],
+  "workflow": {
+    "reviewContext": [
+      "core/**",
+      "adapters/**",
+      "bin/**",
+      "docs/*.md",
+      "package.json"
+    ],
+    "reviewers": {
+      "codex": {},
+      "claude": {},
+      "ollama": {
+        "model": "glm-5.2:cloud",
+        "transport": "pi"
+      }
+    },
+    "reviewExceptions": {
+    }
+  }
+}

@@ -1,0 +1,139 @@
+[
+  {
+    "name": "pstack",
+    "repository": "https://github.com/cursor/plugins",
+    "commit": "c47b12849e43f18d5c374c7069c744cc55b0ea00",
+    "license": "MIT",
+    "files": [
+      {
+        "path": "pstack/skills/poteto-mode/SKILL.md",
+        "sha256": "7645c9ee27ef9798c48a84060b6df409f8593d1058c7c25cbec28dce976195f9",
+        "adaptedAs": [
+          "workflow"
+        ]
+      },
+      {
+        "path": "pstack/skills/how/SKILL.md",
+        "sha256": "d31805589c7f6a63a6db6c9fadebbd79fb9660682cf1654e9b2e5e1e7cd30bc0",
+        "adaptedAs": [
+          "flow-understand"
+        ]
+      },
+      {
+        "path": "pstack/skills/blast-radius/SKILL.md",
+        "sha256": "5f02db9101ccf26c20254718f0fcd5c2c7ac5d4292b0e0923d0944ac47237aff",
+        "adaptedAs": [
+          "flow-understand"
+        ]
+      },
+      {
+        "path": "pstack/skills/architect/SKILL.md",
+        "sha256": "691cd39f52c7b613866e6baf9ea0b05451ffa21a6a9b4102f166418b89178fde",
+        "adaptedAs": [
+          "flow-design"
+        ]
+      },
+      {
+        "path": "pstack/skills/create-verification-skill/SKILL.md",
+        "sha256": "644f2551403c1bca01a2855b34611b6e7be0ce0dc5b204514c376c0f6a6e6ac4",
+        "adaptedAs": [
+          "flow-verify",
+          "flow-setup"
+        ]
+      },
+      {
+        "path": "pstack/skills/principle-prove-it-works/SKILL.md",
+        "sha256": "ec79a15025bac8d33d62011c54f3b612733fd2a024e623b531b3637aa75070e2",
+        "adaptedAs": [
+          "flow-verify"
+        ]
+      },
+      {
+        "path": "pstack/skills/principle-sequence-verifiable-units/SKILL.md",
+        "sha256": "2ccbbacc56ace5afdfb8670cef19d7bd009fb2a0033b9a741cbdf2b6baf72187",
+        "adaptedAs": [
+          "flow-implement"
+        ]
+      },
+      {
+        "path": "pstack/skills/principle-test-behavior-not-implementation/SKILL.md",
+        "sha256": "87e40efe4e486f7ea639d2ed1fc0abe6c93b8fd0e89a81218086909d2470a52e",
+        "adaptedAs": [
+          "flow-test"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "mattpocock",
+    "repository": "https://github.com/mattpocock/skills",
+    "commit": "d81f3a183412e71a5b1e84ca21bc1a35eea03a60",
+    "license": "MIT",
+    "files": [
+      {
+        "path": "skills/engineering/implement/SKILL.md",
+        "sha256": "6d3fd9e83b8f36e5213854779db49b256a457a7ebb4a503e53fa7dcff696adc3",
+        "adaptedAs": [
+          "workflow",
+          "flow-implement"
+        ]
+      },
+      {
+        "path": "skills/engineering/to-spec/SKILL.md",
+        "sha256": "43ad9cf318e5e7d3d1fa360253a37021796dc87a0c2e595ad262661a10f85088",
+        "adaptedAs": [
+          "flow-spec"
+        ]
+      },
+      {
+        "path": "skills/engineering/to-tickets/SKILL.md",
+        "sha256": "5c9fba69845c2519b9b35b9af42ae5142c21f8ca15ac2123dc2722002c8058ae",
+        "adaptedAs": [
+          "flow-spec"
+        ]
+      },
+      {
+        "path": "skills/engineering/codebase-design/SKILL.md",
+        "sha256": "2c20617f87ec8af6a434859f381b2f061a69b530444e74eb39e78bb016a6d1e2",
+        "adaptedAs": [
+          "flow-design"
+        ]
+      },
+      {
+        "path": "skills/engineering/diagnosing-bugs/SKILL.md",
+        "sha256": "9168404abda0967a5d32977e3498cd95fda6807018852f3de736a78357c82b40",
+        "adaptedAs": [
+          "flow-debug"
+        ]
+      },
+      {
+        "path": "skills/engineering/tdd/SKILL.md",
+        "sha256": "93ea419b76e9caaf26153b828e984f7c3fb136f4caa67b14af95f32ea965a1cc",
+        "adaptedAs": [
+          "flow-test"
+        ]
+      },
+      {
+        "path": "skills/engineering/code-review/SKILL.md",
+        "sha256": "47f4e52c21694def9c7c11cbfbf891ca35eac7a93e395797515be3c8a409ae50",
+        "adaptedAs": [
+          "flow-review"
+        ]
+      },
+      {
+        "path": "skills/productivity/handoff/SKILL.md",
+        "sha256": "7c62de979fdc7ac32fb5ddb2146156c917f80ee070d30fadc9d40343c4b6ed25",
+        "adaptedAs": [
+          "flow-handoff"
+        ]
+      },
+      {
+        "path": "skills/engineering/setup-matt-pocock-skills/SKILL.md",
+        "sha256": "9a0c21694be19fa3eefc39343355d3af7414716ba364882c7432c2f821eac3e9",
+        "adaptedAs": [
+          "flow-setup"
+        ]
+      }
+    ]
+  }
+]

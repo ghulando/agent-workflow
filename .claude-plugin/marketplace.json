@@ -1,0 +1,16 @@
+{
+  "name": "agent-workflow-local",
+  "metadata": {
+    "description": "Shared workflow guards for coding harnesses"
+  },
+  "owner": {
+    "name": "Agent Workflow contributors"
+  },
+  "plugins": [
+    {
+      "name": "agent-workflow",
+      "source": "./",
+      "description": "Shared repository workflow guards"
+    }
+  ]
+}

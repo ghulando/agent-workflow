@@ -1,0 +1,1028 @@
+import type { TestContext } from 'node:test';
+import type { ProjectConfig, HarnessSettings, PackageMetadata } from '../core/types.js';
+import './environment.js';
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
+import { tmpdir } from 'node:os';
+import { basename, join } from 'node:path';
+import test from 'node:test';
+import { loadProject, git } from '../core/project.js';
+import { flowConfig, reviewerChoices } from '../core/flow-config.js';
+import { startTask, resumeTask, handoffTask, readTask, taskWorkspace } from '../core/tasks.js';
+import { proposeSetup, applySetup } from '../core/setup.js';
+import { installPersonal, personalInstallPlan } from '../core/personal-install.js';
+import {
+  parseVerdict,
+  runReview as rawReview,
+  reviewSnapshot,
+  hasReview,
+  reviewCommand,
+  reviewKey,
+} from '../core/review.js';
+import { fingerprint, sessionKey, withState } from '../core/state.js';
+import { handle, runGate } from '../core/runtime.js';
+
+function fixture(t: TestContext, workflow = {}) {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-pack-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  execFileSync('git', ['init', '-q', '--initial-branch=main'], { cwd: root });
+  writeFileSync(
+    join(root, '.agent-workflow.json'),
+    JSON.stringify({
+      version: 1,
+      gate: [process.execPath, '-e', 'process.exit(0)'],
+      workflow: {
+        reviewers: { claude: {}, codex: {}, ollama: { model: 'test-model' } },
+        ...workflow,
+      },
+    }),
+  );
+  writeFileSync(join(root, 'source.txt'), 'original\n');
+  git(root, ['add', '.']);
+  git(root, [
+    '-c',
+    'user.name=Fixture',
+    '-c',
+    'user.email=fixture@example.invalid',
+    'commit',
+    '-qm',
+    'fixture',
+  ]);
+  return root;
+}
+
+async function runReview(
+  root: string,
+  path: string,
+  args: { author: string; reviewer: string; round: number },
+) {
+  const gateSession = sessionKey(root, args.author, 'review-test');
+  await runGate(root, gateSession);
+  return rawReview(root, path, { ...args, gateSession });
+}
+
+function fakeReviewers(t: TestContext, mode = 'pass') {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-review-cli-')));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const previous = process.env.PATH;
+  process.env.PATH = `${dir}:${previous}`;
+  t.after(() => {
+    process.env.PATH = previous;
+  });
+  const record = join(dir, 'invocation.json');
+  const script = `#!${process.execPath}
+const fs = require('fs');
+const path = require('path');
+let input = '';
+process.stdin.on('data', bytes => input += bytes);
+process.stdin.on('end', () => {
+ const name = path.basename(process.argv[1]), args = process.argv.slice(2);
+ fs.writeFileSync(${JSON.stringify(record)}, JSON.stringify({name,args,input,cwd:process.cwd()}));
+ const result = JSON.stringify({verdict:'${mode === 'blocked' ? 'blocked' : 'pass'}', standards:'Checked project rules and concrete source.',spec:'Checked the stated acceptance criteria.',findings:${mode === 'blocked' ? "[{severity:'blocking',location:'source.txt:1',problem:'Wrong behavior',suggestion:'Fix it'}]" : '[]'}});
+ ${mode === 'timeout' ? 'setInterval(() => {}, 1000); return;' : ''}
+ ${mode === 'mutate' ? "const root = input.match(/MUTATE_ROOT=(.+)/)[1]; fs.writeFileSync(path.join(root,'source.txt'),'outside edit');" : ''}
+ if (name === 'codex') fs.writeFileSync(args[args.indexOf('-o')+1], result);
+ else if (name === 'claude') process.stdout.write(JSON.stringify({result:${mode === 'malformed' ? "'not-json'" : 'result'},is_error:false}));
+ else process.stdout.write(result);
+});
+`;
+  for (const name of ['claude', 'codex', 'ollama']) {
+    const file = join(dir, name);
+    writeFileSync(file, script);
+    chmodSync(file, 0o755);
+  }
+  return record;
+}
+
+const start = (root: string, author = 'codex') =>
+  startTask(root, { id: 'example', title: 'Build example', author });
+
+test('task creation starts from the configured base and dirty trees remain untouched', (t) => {
+  const root = fixture(t);
+  const base = git(root, ['rev-parse', 'HEAD']).trim();
+  const created = start(root);
+  assert.equal(created.branch, 'feature/example');
+  assert.equal(created.base, base);
+  const resumed = resumeTask(root, created.task);
+  assert.equal(resumed.metadata.author, 'codex');
+  assert.equal(resumed.expectedBranch, 'feature/example');
+  assert.match(resumed.content, /Acceptance criteria/);
+  const before = fingerprint(root);
+  assert.throws(
+    () => startTask(root, { id: 'second', title: 'Second', author: 'pi' }),
+    /existing changes/,
+  );
+  assert.equal(fingerprint(root), before);
+  assert.throws(() => startTask(root, { id: '../escape', title: 'Escape', author: 'pi' }), /slug/);
+});
+
+test('setup detects mixed applications, preserves conventions, and stale proposals cannot apply', (t) => {
+  const root = fixture(t);
+  const before = fingerprint(root);
+  for (const directory of ['web', 'api', 'worker', 'gateway']) mkdirSync(join(root, directory));
+  writeFileSync(
+    join(root, 'web/package.json'),
+    JSON.stringify({
+      dependencies: { vue: '3' },
+      devDependencies: { typescript: '5' },
+      scripts: { build: 'vite build', test: 'vitest run' },
+    }),
+  );
+  writeFileSync(join(root, 'api/Api.csproj'), '<Project/>');
+  writeFileSync(join(root, 'worker/pyproject.toml'), '[project]\nname="worker"');
+  writeFileSync(join(root, 'gateway/go.mod'), 'module example.invalid/gateway\n');
+  const tree = fingerprint(root);
+  const proposal = proposeSetup(root);
+  assert.deepEqual(
+    proposal.projects.map((p) => [p.path, p.stacks]),
+    [
+      ['api', ['dotnet']],
+      ['gateway', ['go']],
+      ['web', ['vue', 'typescript']],
+      ['worker', ['python']],
+    ],
+  );
+  assert.equal(fingerprint(root), tree);
+  assert.notEqual(tree, before);
+  assert.equal(proposal.config.workflow.baseBranch, 'main');
+  assert.equal(proposal.config.gate![0], process.execPath);
+  const file = join(tmpdir(), `proposal-${process.pid}-${Date.now()}.json`);
+  t.after(() => rmSync(file, { force: true }));
+  proposal.config.workflow.featurePrefix = 'work/';
+  writeFileSync(file, JSON.stringify(proposal));
+  applySetup(root, file);
+  assert.equal(loadProject(root).config.workflow.featurePrefix, 'work/');
+  assert.throws(() => applySetup(root, file), /stale/);
+});
+
+test('personal defaults are overridden per project and invalid reviewer settings fail closed', (t) => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-personal-')));
+  const previous = process.env.AGENT_WORKFLOW_HOME;
+  t.after(() => {
+    if (previous === undefined) {
+      delete process.env.AGENT_WORKFLOW_HOME;
+    } else {
+      process.env.AGENT_WORKFLOW_HOME = previous;
+    }
+    rmSync(home, { recursive: true, force: true });
+  });
+  process.env.AGENT_WORKFLOW_HOME = home;
+  writeFileSync(
+    join(home, 'personal.json'),
+    JSON.stringify({
+      shellApproval: 'native',
+      featurePrefix: 'personal/',
+      taskDirectory: 'tasks',
+      reviewers: { claude: { model: 'personal-model' } },
+    }),
+  );
+  const root = fixture(t, { featurePrefix: 'repo/', reviewers: {} });
+  const config = loadProject(root).config.workflow;
+  assert.equal(config.featurePrefix, 'repo/');
+  assert.equal(config.taskDirectory, 'tasks');
+  assert.equal(config.reviewers.claude!.model, 'personal-model');
+  assert.equal(config.shellApproval, 'native');
+  assert.equal(
+    loadProject(root, { workflow: { shellApproval: 'workflow' } }).config.workflow.shellApproval,
+    'workflow',
+  );
+  assert.throws(() => flowConfig({ reviewers: { ollama: {} } }), /explicit model/);
+  assert.throws(() => flowConfig({ reviewers: { claude: { command: 'evil' } } }), /settings/);
+  assert.throws(() => flowConfig({ taskDirectory: '../outside' }), /relative/);
+  assert.throws(() => flowConfig(JSON.parse('{"constructor":false}') as unknown), /unknown/);
+  assert.throws(
+    () => flowConfig(JSON.parse('{"__proto__":{"requireReview":false}}') as unknown),
+    /unknown/,
+  );
+});
+
+test('setup proposals keep personal defaults out of the repo and personal read commands apply to every repo', async (t) => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-personal-')));
+  const previous = process.env.AGENT_WORKFLOW_HOME;
+  t.after(() => {
+    if (previous === undefined) {
+      delete process.env.AGENT_WORKFLOW_HOME;
+    } else {
+      process.env.AGENT_WORKFLOW_HOME = previous;
+    }
+    rmSync(home, { recursive: true, force: true });
+  });
+  process.env.AGENT_WORKFLOW_HOME = home;
+  writeFileSync(
+    join(home, 'personal.json'),
+    JSON.stringify({ featurePrefix: 'personal/', readCommands: [['graphify', 'query']] }),
+  );
+  const root = fixture(t);
+  const proposal = proposeSetup(root);
+  assert.equal(proposal.config.workflow.featurePrefix, undefined);
+  assert.equal(proposal.config.workflow.baseBranch, 'main');
+  assert.equal(loadProject(root).config.workflow.featurePrefix, 'personal/');
+  git(root, ['switch', '-q', '-c', 'feature/read']);
+  const bash = (command: string) =>
+    handle('claude', {
+      cwd: root,
+      session_id: 'personal-read',
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Bash',
+      tool_input: { command },
+      permission_mode: 'plan',
+    });
+  assert.equal((await bash('graphify query "who calls handle"')).decision, undefined);
+  assert.equal((await bash('graphify query --write out "x"')).decision, 'deny');
+  assert.equal((await bash('graphify build')).decision, 'deny');
+  const documentation = readFileSync(
+    new URL('../../docs/configuration.md', import.meta.url),
+    'utf8',
+  );
+  const graphifyExample = documentation
+    .split('```json\n')
+    .slice(1)
+    .map((block) => block.split('\n```')[0]!)
+    .find((block) => block.includes('"graphify"'));
+  assert.ok(graphifyExample, 'configuration documents graphify typed read commands');
+  writeFileSync(join(home, 'personal.json'), graphifyExample);
+  assert.equal(loadProject(root).config.readCommands.length, 4);
+  for (const command of [
+    'graphify query "who calls handle"',
+    'graphify query "who calls handle" --budget 1500 --dfs',
+    'graphify explain "handle"',
+    'graphify path "handle" "startupContext"',
+    'graphify affected "handle"',
+    'graphify affected "handle" --depth 2',
+  ]) {
+    assert.equal((await bash(command)).decision, undefined, command);
+  }
+  for (const command of [
+    'graphify update .',
+    'graphify build',
+    'graphify hook',
+    'graphify query "handle" --unknown',
+    'graphify query "handle" --graph /etc/passwd',
+    'graphify query "handle" --budget abc',
+    'graphify query x && rm y',
+    'graphify query "handle" --budget 0',
+    'graphify query "handle" --budget -1',
+    'graphify query "handle" --budget 1.5',
+    'graphify query "handle" --budget',
+    'graphify query "handle" --budget=1500',
+    'graphify affected "handle" --depth 0',
+    'graphify affected "handle" --depth nope',
+    'graphify query',
+    'graphify explain "handle" "extra"',
+    'graphify path "handle"',
+    'graphify path "handle" "startupContext" "extra"',
+  ]) {
+    assert.equal((await bash(command)).decision, 'deny', command);
+  }
+  const entry = {
+    prefix: ['herdr', 'agent', 'read'],
+    options: { '--lines': 'positiveInteger' },
+    positionals: { min: 1, max: 1 },
+  };
+  writeFileSync(join(home, 'personal.json'), JSON.stringify({ readCommands: [entry] }));
+  const project = JSON.parse(
+    readFileSync(join(root, '.agent-workflow.json'), 'utf8'),
+  ) as ProjectConfig;
+  project.readCommands = [['inspect', '--list']];
+  writeFileSync(join(root, '.agent-workflow.json'), JSON.stringify(project));
+  assert.deepEqual(loadProject(root).config.readCommands, [['inspect', '--list'], entry]);
+  assert.equal((await bash('herdr agent read X --lines 400')).decision, undefined);
+  assert.equal((await bash('inspect --list X')).decision, undefined);
+  assert.equal((await bash('herdr agent read X --lines=400')).decision, 'deny');
+  for (const readCommands of ['graphify', [[]], [['graphify', '']]]) {
+    writeFileSync(join(home, 'personal.json'), JSON.stringify({ readCommands }));
+    assert.throws(() => loadProject(root), /read command|readCommands/);
+  }
+  mkdirSync(join(home, 'agent-workflow'));
+  writeFileSync(
+    join(home, 'agent-workflow/personal.json'),
+    JSON.stringify({ readCommands: [['graphify', 'query']] }),
+  );
+  assert.doesNotThrow(() => personalInstallPlan(home, join(home, 'agent-workflow')));
+});
+
+test('personal install preview preserves unrelated plugins and permissions without writing files', (t) => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-user-install-')));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  mkdirSync(join(home, '.claude'));
+  writeFileSync(
+    join(home, '.claude/settings.json'),
+    JSON.stringify({
+      enabledPlugins: { 'example-plugin@example-marketplace': true },
+      permissions: { deny: ['Read(.env)'] },
+    }),
+  );
+  const plan = personalInstallPlan(home, join(home, '.config/agent-workflow'));
+  const settings = JSON.parse(
+    plan.writes.find((w) => w.path.endsWith('.claude/settings.json'))!.content,
+  ) as HarnessSettings & { permissions?: unknown };
+  assert.equal(settings.enabledPlugins!['example-plugin@example-marketplace'], true);
+  assert.deepEqual(settings.permissions, { deny: ['Read(.env)'] });
+  assert.equal(settings.enabledPlugins!['agent-workflow@agent-workflow-local'], true);
+  assert.equal(existsSync(join(home, '.pi')), false);
+  assert.equal(existsSync(plan.copy!.destination), false);
+});
+
+test('personal install commands register Claude for fresh and existing installations', (t) => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-claude-install-')));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const destination = join(home, '.config/agent-workflow');
+  const source = join(destination, 'package');
+  const expected = [
+    ['claude', 'plugin', 'marketplace', 'add', source],
+    ['claude', 'plugin', 'install', 'agent-workflow@agent-workflow-local'],
+  ];
+  assert.deepEqual(
+    personalInstallPlan(home, destination).commands.filter((command) => command[0] === 'claude'),
+    expected,
+  );
+  installPersonal(home, destination);
+  assert.deepEqual(
+    personalInstallPlan(home, destination).commands.filter((command) => command[0] === 'claude'),
+    expected,
+  );
+});
+
+test('personal upgrades stage a replacement and preserve preferences; same versions skip copying', (t) => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-upgrade-')));
+  const destination = join(home, '.config/agent-workflow');
+  const target = join(destination, 'package');
+  const previous = process.env.AGENT_WORKFLOW_HOME;
+  const previousHome = process.env.HOME;
+  process.env.HOME = home;
+  process.env.AGENT_WORKFLOW_HOME = destination;
+  t.after(() => {
+    if (previous === undefined) {
+      delete process.env.AGENT_WORKFLOW_HOME;
+    } else {
+      process.env.AGENT_WORKFLOW_HOME = previous;
+    }
+    if (previousHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = previousHome;
+    }
+    rmSync(home, { recursive: true, force: true });
+  });
+  mkdirSync(target, { recursive: true });
+  writeFileSync(
+    join(target, 'package.json'),
+    JSON.stringify({ name: 'agent-workflow', version: '0.2.2' }),
+  );
+  writeFileSync(join(target, 'obsolete.txt'), 'old package');
+  const personal = '{"reviewTimeout":120,"readCommands":[["inspect"]]}\n';
+  writeFileSync(join(destination, 'personal.json'), personal);
+  const plan = personalInstallPlan(home, destination);
+  assert.deepEqual(plan.upgrade, { from: '0.2.2', to: '0.0.1' });
+  assert.equal(readFileSync(join(target, 'obsolete.txt'), 'utf8'), 'old package');
+  assert.ok(plan.copy);
+  assert.deepEqual(plan.commands, [
+    ['claude', 'plugin', 'marketplace', 'add', target],
+    ['claude', 'plugin', 'install', 'agent-workflow@agent-workflow-local'],
+    ['codex', 'plugin', 'marketplace', 'add', destination],
+    ['codex', 'plugin', 'remove', 'agent-workflow@agent-workflow-local'],
+    ['codex', 'plugin', 'add', 'agent-workflow@agent-workflow-local'],
+  ]);
+  installPersonal();
+  assert.equal(
+    (JSON.parse(readFileSync(join(target, 'package.json'), 'utf8')) as PackageMetadata).version,
+    '0.0.1',
+  );
+  for (const manifest of ['.claude-plugin/plugin.json', '.codex-plugin/plugin.json']) {
+    assert.equal(
+      (JSON.parse(readFileSync(join(target, manifest), 'utf8')) as PackageMetadata).version,
+      '0.0.1',
+    );
+  }
+  assert.equal(existsSync(join(target, 'dist/core/shell.js')), true);
+  assert.equal(existsSync(join(target, 'obsolete.txt')), false);
+  assert.equal(readFileSync(join(destination, 'personal.json'), 'utf8'), personal);
+  assert.equal(personalInstallPlan(home, destination).copy, null);
+  writeFileSync(join(target, 'README.md'), 'same-version sentinel');
+  t.mock.method(fs, 'cpSync', () => {
+    throw new Error('must not copy');
+  });
+  syncBuiltinESMExports();
+  try {
+    assert.throws(() => installPersonal(home, destination), /--repair/);
+  } finally {
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
+  }
+  assert.equal(readFileSync(join(target, 'README.md'), 'utf8'), 'same-version sentinel');
+  assert.equal(personalInstallPlan(home, destination).drift!.matches, false);
+  assert.ok(personalInstallPlan(home, destination, { repair: true }).copy);
+  installPersonal(home, destination, { repair: true });
+  assert.equal(personalInstallPlan(home, destination).drift!.matches, true);
+  writeFileSync(
+    join(target, 'package.json'),
+    JSON.stringify({ name: 'another-package', version: '0.2.2' }),
+  );
+  assert.throws(() => personalInstallPlan(home, destination), /another package|package name/);
+});
+
+test('a failed staged personal upgrade leaves the installed package and settings intact', (t) => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-upgrade-failure-')));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const destination = join(home, '.config/agent-workflow');
+  const target = join(destination, 'package');
+  mkdirSync(target, { recursive: true });
+  const old = '{"name":"agent-workflow","version":"0.2.2"}\n';
+  writeFileSync(join(target, 'package.json'), old);
+  writeFileSync(join(target, 'working.txt'), 'still working');
+  writeFileSync(join(destination, 'personal.json'), '{}\n');
+  const copy = fs.cpSync;
+  let copies = 0;
+  t.mock.method(fs, 'cpSync', (...args: Parameters<typeof fs.cpSync>) => {
+    if (++copies === 2) throw new Error('copy failed');
+    return copy(...args);
+  });
+  syncBuiltinESMExports();
+  try {
+    assert.throws(() => installPersonal(home, destination), /copy failed/);
+  } finally {
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
+  }
+  assert.equal(copies, 2);
+  assert.equal(readFileSync(join(target, 'package.json'), 'utf8'), old);
+  assert.equal(readFileSync(join(target, 'working.txt'), 'utf8'), 'still working');
+  assert.equal(readFileSync(join(destination, 'personal.json'), 'utf8'), '{}\n');
+  assert.equal(existsSync(join(home, '.claude/settings.json')), false);
+  assert.deepEqual(fs.readdirSync(destination).sort(), ['package', 'personal.json']);
+});
+
+test('a failed personal package swap restores the previous directory', (t) => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-upgrade-swap-')));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const destination = join(home, '.config/agent-workflow');
+  const target = join(destination, 'package');
+  mkdirSync(target, { recursive: true });
+  const old = '{"name":"agent-workflow","version":"0.2.2"}\n';
+  writeFileSync(join(target, 'package.json'), old);
+  const rename = fs.renameSync;
+  let renames = 0;
+  t.mock.method(fs, 'renameSync', (...args: Parameters<typeof fs.renameSync>) => {
+    if (++renames === 2) throw new Error('swap failed');
+    return rename(...args);
+  });
+  syncBuiltinESMExports();
+  try {
+    assert.throws(() => installPersonal(home, destination), /swap failed/);
+  } finally {
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
+  }
+  assert.equal(renames, 3);
+  assert.equal(readFileSync(join(target, 'package.json'), 'utf8'), old);
+  assert.deepEqual(fs.readdirSync(destination), ['package']);
+});
+
+test('personal installation recognizes an equivalent single-quoted Codex plugin table', (t) => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-user-toml-')));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  mkdirSync(join(home, '.codex'));
+  const toml = "[plugins.'agent-workflow@agent-workflow-local']\nenabled = true\n";
+  writeFileSync(join(home, '.codex/config.toml'), toml);
+  const plan = personalInstallPlan(home, join(home, '.config/agent-workflow'));
+  assert.equal(
+    plan.writes.some((write) => write.path.endsWith('.codex/config.toml')),
+    false,
+  );
+  writeFileSync(join(home, '.codex/config.toml'), toml.replace('true', 'false'));
+  assert.throws(() => personalInstallPlan(home, join(home, '.config/agent-workflow')), /disabled/);
+});
+
+for (const [author, choices] of Object.entries(reviewerChoices)) {
+  for (const reviewer of choices) {
+    test(`${author} to ${reviewer}: two independent subprocess rounds produce a tree-bound receipt`, async (t) => {
+      const root = fixture(t);
+      const task = start(root, author);
+      const log = fakeReviewers(t);
+      writeFileSync(join(root, 'source.txt'), 'implementation change');
+      const before = fingerprint(root);
+      // A preexisting alias at the summary path must be replaced, not written through.
+      const workspace = taskWorkspace(root, basename(task.task, '.md'));
+      const victim = join(mkdtempSync(join(tmpdir(), 'workflow-victim-')), 'victim.txt');
+      t.after(() => rmSync(join(victim, '..'), { recursive: true, force: true }));
+      writeFileSync(victim, 'untouched');
+      symlinkSync(victim, join(workspace, `${reviewer}-review-round1.md`));
+      const first = await runReview(root, task.task, { author, reviewer, round: 1 });
+      assert.equal(first.verdict, 'pass');
+      assert.equal(readFileSync(victim, 'utf8'), 'untouched');
+      assert.equal(lstatSync(join(workspace, `${reviewer}-review-round1.md`)).isFile(), true);
+      assert.equal(await hasReview(loadProject(root), task.task, before), true);
+      const second = await runReview(root, task.task, { author, reviewer, round: 2 });
+      assert.equal(second.verdict, 'pass');
+      assert.equal(await hasReview(loadProject(root), task.task, before), true);
+      assert.match(
+        readFileSync(join(workspace, `${reviewer}-review-round2.md`), 'utf8'),
+        /^# Review round 2 by .*\n\nVerdict: pass\./,
+      );
+      const invocation = JSON.parse(readFileSync(log, 'utf8')) as {
+        name: string;
+        args: string[];
+        input: string;
+        cwd: string;
+      };
+      assert.notEqual(invocation.cwd, root);
+      assert.match(invocation.input, /original/);
+      if (reviewer === 'claude') {
+        assert.equal(invocation.args[invocation.args.indexOf('--tools') + 1], '');
+      }
+      if (reviewer === 'codex') {
+        assert.equal(invocation.args[invocation.args.indexOf('--sandbox') + 1], 'read-only');
+      }
+      assert.equal(fingerprint(root), before);
+      writeFileSync(join(root, 'source.txt'), 'changed after review');
+      assert.equal(await hasReview(loadProject(root), task.task, fingerprint(root)), false);
+      await assert.rejects(
+        runReview(root, task.task, { author, reviewer, round: 2 }),
+        /already recorded/,
+      );
+    });
+  }
+}
+
+test('a pane review records only the independent reviewer own verdict file', async (t) => {
+  const root = fixture(t);
+  const task = start(root);
+  const gateSession = sessionKey(root, 'codex', 'review-test');
+  await runGate(root, gateSession);
+  const review = (reviewer: string) =>
+    rawReview(root, task.task, { author: 'codex', reviewer, round: 1, gateSession, pane: true });
+  for (const reviewer of ['codex', 'ollama']) {
+    await assert.rejects(review(reviewer), /is not independent of author codex/);
+  }
+  await assert.rejects(review('pi'), /pane reviewer has not written/);
+  const verdict = join(task.workspace, 'pi-verdict-round1.json');
+  const elsewhere = join(root, 'elsewhere.json');
+  symlinkSync(elsewhere, verdict);
+  await assert.rejects(review('pi'), /pane reviewer has not written/);
+  rmSync(verdict);
+  writeFileSync(
+    verdict,
+    JSON.stringify({
+      verdict: 'pass',
+      standards: 'Checked project rules and concrete source.',
+      spec: 'Checked the stated acceptance criteria.',
+      findings: [],
+    }),
+  );
+  const result = await review('pi');
+  assert.equal(result.verdict, 'pass');
+  assert.equal(result.transport, 'pane');
+  assert.equal(result.model, 'pane session');
+  assert.ok(existsSync(join(task.workspace, 'pi-review-round1.md')));
+  assert.equal(await hasReview(loadProject(root), task.task, fingerprint(root)), true);
+});
+
+test('completion uses a passing current-tree review from either round and rejects blocked or stale reviews', async (t) => {
+  for (const scenario of ['pass', 'blocked', 'changed', 'fixed', 'later blocked']) {
+    await t.test(scenario, async (t) => {
+      const root = fixture(t);
+      const task = start(root);
+      const reviewer = 'claude';
+      fakeReviewers(t, scenario === 'blocked' || scenario === 'fixed' ? 'blocked' : 'pass');
+      const first = await runReview(root, task.task, { author: 'codex', reviewer, round: 1 });
+      assert.equal(
+        first.verdict,
+        scenario === 'blocked' || scenario === 'fixed' ? 'blocked' : 'pass',
+      );
+      if (scenario === 'changed' || scenario === 'fixed') {
+        writeFileSync(join(root, 'source.txt'), 'changed after first review');
+      }
+      if (scenario === 'fixed' || scenario === 'later blocked') {
+        fakeReviewers(t, scenario === 'fixed' ? 'pass' : 'blocked');
+        const second = await runReview(root, task.task, { author: 'codex', reviewer, round: 2 });
+        assert.equal(second.verdict, scenario === 'fixed' ? 'pass' : 'blocked');
+      }
+      const accepted = scenario === 'pass' || scenario === 'fixed';
+      const project = loadProject(root);
+      assert.equal(await hasReview(project, task.task, fingerprint(root)), accepted);
+      const metadata = readTask(project, task.task).metadata;
+      const receipt = await withState(
+        root,
+        reviewKey(readTask(project, task.task)),
+        (state) => state.pass,
+      );
+      if (accepted) assert.equal(receipt!.base, metadata.base);
+      if (scenario === 'blocked' || scenario === 'later blocked') assert.equal(receipt, null);
+      const key = sessionKey(root, 'codex', 'completion-test');
+      // A fresh gate isolates review rejection from a stale gate, including after a tree change.
+      await runGate(root, key);
+      const content = readFileSync(join(root, task.task), 'utf8').replace(
+        '**Status:** open.',
+        '**Status:** done.',
+      );
+      const result = await handle('codex', {
+        cwd: root,
+        session_id: 'completion-test',
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Write',
+        tool_input: { file_path: task.task, content },
+      });
+      assert.equal(result.decision, accepted ? undefined : 'deny');
+      if (!accepted) assert.match(result.reason!, /passing.*review/);
+    });
+  }
+});
+
+test('review snapshot contains branch, staged, unstaged and untracked changes without index mutation', (t) => {
+  const root = fixture(t);
+  const created = start(root);
+  const task = readTask(loadProject(root), created.task);
+  writeFileSync(join(root, 'source.txt'), 'staged version');
+  git(root, ['add', 'source.txt']);
+  writeFileSync(join(root, 'source.txt'), 'unstaged final version');
+  writeFileSync(join(root, 'new.txt'), 'untracked evidence');
+  const before = fingerprint(root);
+  const snapshot = reviewSnapshot(loadProject(root), task);
+  assert.match(snapshot!, /unstaged final version/);
+  assert.match(snapshot!, /untracked evidence/);
+  assert.match(snapshot!, /-original/);
+  assert.equal(fingerprint(root), before);
+});
+
+test('nonzero reviewer exits report only a bounded trimmed stderr tail and grant no receipt', async (t) => {
+  for (const [name, stderr, expected] of [
+    ['diagnostic', '  reviewer authentication failed\n', 'reviewer authentication failed'],
+    [
+      'bounded tail',
+      'discarded prefix\n' + 'x'.repeat(1978) + '\nAUTHENTICATION_ERROR\n',
+      'x'.repeat(1978) + '\nAUTHENTICATION_ERROR',
+    ],
+    ['empty stderr', '', ''],
+    ['whitespace stderr', ' \n\t ', ''],
+  ]) {
+    await t.test(name!, async (t) => {
+      const root = fixture(t);
+      const task = start(root);
+      const log = fakeReviewers(t);
+      writeFileSync(
+        join(log, '..', 'claude'),
+        `#!${process.execPath}
+process.stdin.resume();
+process.stdin.on('end', () => {
+  process.stderr.write(${JSON.stringify(stderr)}, () => process.exit(1));
+});
+`,
+      );
+      const prefix = 'reviewer exited 1; no review receipt recorded';
+      await assert.rejects(
+        runReview(root, task.task, { author: 'codex', reviewer: 'claude', round: 1 }),
+        (error: unknown) => {
+          assert.ok(error instanceof Error);
+          assert.equal(error.message, expected ? `${prefix}: ${expected}` : prefix);
+          return true;
+        },
+      );
+      assert.equal(await hasReview(loadProject(root), task.task, fingerprint(root)), false);
+    });
+  }
+});
+
+test('failed, malformed, timed-out, and concurrently mutated reviews never grant a receipt', async (t) => {
+  for (const mode of ['malformed', 'timeout', 'mutate']) {
+    await t.test(mode, async (t) => {
+      const root = fixture(t, { reviewTimeout: 1 });
+      const task = start(root);
+      if (mode === 'mutate') writeFileSync(join(root, 'source.txt'), `MUTATE_ROOT=${root}\n`);
+      fakeReviewers(t, mode);
+      await assert.rejects(
+        runReview(root, task.task, { author: 'codex', reviewer: 'claude', round: 1 }),
+      );
+      assert.equal(await hasReview(loadProject(root), task.task, fingerprint(root)), false);
+    });
+  }
+});
+
+test('scratch creation and chmod failures clear running review state and allow retry', async (t) => {
+  for (const method of ['mkdtempSync', 'chmodSync'] as const) {
+    await t.test(method, async (t) => {
+      const root = fixture(t);
+      const task = start(root);
+      const key = reviewKey(readTask(loadProject(root), task.task));
+      fakeReviewers(t);
+      const original = fs[method];
+      const failure = new Error(`injected ${method} failure`);
+      let scratch: fs.PathLike | undefined;
+      t.after(() => {
+        if (scratch) rmSync(scratch, { recursive: true, force: true });
+      });
+      const mock = t.mock.method(
+        fs,
+        method,
+        (...args: [fs.PathLike, (fs.MakeDirectoryOptions | fs.Mode)?]) => {
+          if (String(args[0]).includes('workflow-review-')) {
+            if (method === 'chmodSync') scratch = args[0];
+            throw failure;
+          }
+          return (
+            original as (...args: [fs.PathLike, (fs.MakeDirectoryOptions | fs.Mode)?]) => unknown
+          )(...args);
+        },
+      );
+      syncBuiltinESMExports();
+      try {
+        await assert.rejects(
+          runReview(root, task.task, { author: 'codex', reviewer: 'claude', round: 1 }),
+          (error) => error === failure,
+        );
+      } finally {
+        mock.mock.restore();
+        syncBuiltinESMExports();
+      }
+      // Leaving scratch setup outside finally strands a running marker before any reviewer starts.
+      assert.equal(await withState(root, key, (state) => state.running), null);
+      assert.equal(await hasReview(loadProject(root), task.task, fingerprint(root)), false);
+      if (scratch) assert.equal(existsSync(scratch), false);
+      assert.equal(
+        (await runReview(root, task.task, { author: 'codex', reviewer: 'claude', round: 1 }))
+          .verdict,
+        'pass',
+      );
+    });
+  }
+});
+
+test('self-review, wrong author, re-review first, and contradictory verdicts fail closed', async (t) => {
+  const root = fixture(t);
+  const task = start(root);
+  await assert.rejects(
+    runReview(root, task.task, { author: 'codex', reviewer: 'codex', round: 1 }),
+    /independent/,
+  );
+  await assert.rejects(
+    runReview(root, task.task, { author: 'pi', reviewer: 'claude', round: 1 }),
+    /author/,
+  );
+  await assert.rejects(
+    runReview(root, task.task, { author: 'codex', reviewer: 'claude', round: 2 }),
+    /first/,
+  );
+  assert.throws(
+    () =>
+      parseVerdict(
+        JSON.stringify({
+          verdict: 'pass',
+          standards: 'rules',
+          spec: 'spec',
+          findings: [{ severity: 'blocking', location: 'x:1', problem: 'bug', suggestion: 'fix' }],
+        }),
+      ),
+    /unresolved/,
+  );
+  assert.throws(() => parseVerdict('{"verdict":"pass","findings":[]}'), /standards/);
+});
+
+for (const harness of ['pi', 'codex', 'claude']) {
+  test(`${harness}: done requires review plus gate; handoff stales review`, async (t) => {
+    const root = fixture(t);
+    const task = start(root, harness);
+    const key = sessionKey(root, harness, 'pack-test');
+    const reviewer = reviewerChoices[harness]![0]!;
+    fakeReviewers(t);
+    const content = readFileSync(join(root, task.task), 'utf8');
+    const done = content.replace('**Status:** open.', '**Status:** done.');
+    const payload = {
+      cwd: root,
+      session_id: 'pack-test',
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Write',
+      tool_input: { file_path: task.task, content: done },
+    };
+    assert.equal((await handle(harness, payload)).decision, 'deny');
+    await runGate(root, key);
+    assert.equal((await handle(harness, payload)).decision, 'deny');
+    await runReview(root, task.task, { author: harness, reviewer, round: 1 });
+    await runReview(root, task.task, { author: harness, reviewer, round: 2 });
+    await runGate(root, key);
+    assert.equal(
+      (
+        await handle(harness, {
+          ...payload,
+          tool_input: {
+            ...payload.tool_input,
+            content: done.replace('Build example', 'Different scope'),
+          },
+        })
+      ).decision,
+      'deny',
+    );
+    assert.equal((await handle(harness, payload)).decision, undefined);
+    handoffTask(root, task.task, harness === 'codex' ? 'claude' : 'codex');
+    assert.equal(await hasReview(loadProject(root), task.task, fingerprint(root)), false);
+  });
+}
+
+test('explicit Pi Ollama transport disables tools and all discovery', () => {
+  const command = reviewCommand(
+    'ollama',
+    { model: 'example:cloud', transport: 'pi' },
+    '/tmp/output',
+    '/tmp/input.md',
+  );
+  assert.equal(command[0], 'pi');
+  for (const option of ['--no-tools', '--no-extensions', '--no-skills', '--no-context-files']) {
+    assert.ok(command.includes(option));
+  }
+  assert.equal(command.at(-1), '@/tmp/input.md');
+  assert.equal(command[command.indexOf('--model') + 1], 'example:cloud');
+});
+
+test('explicit generated exclusions are disclosed and still stale receipts', (t) => {
+  const root = fixture(t, { reviewExclude: ['generated/**'] });
+  const created = start(root);
+  mkdirSync(join(root, 'generated'));
+  writeFileSync(join(root, 'generated/large.json'), 'generated-content');
+  writeFileSync(join(root, 'source.txt'), 'reviewed-source');
+  const before = fingerprint(root);
+  const snapshot = reviewSnapshot(loadProject(root), readTask(loadProject(root), created.task));
+  assert.match(snapshot!, /generated/);
+  assert.doesNotMatch(snapshot!, /generated-content/);
+  assert.match(snapshot!, /reviewed-source/);
+  writeFileSync(join(root, 'generated/large.json'), 'changed-generated-content');
+  assert.notEqual(fingerprint(root), before);
+});
+
+test('review cannot start with a missing or stale gate receipt', async (t) => {
+  const root = fixture(t);
+  const task = start(root);
+  await assert.rejects(
+    rawReview(root, task.task, { author: 'codex', reviewer: 'claude', round: 1 }),
+    /gate session/,
+  );
+  const gateSession = sessionKey(root, 'codex', 'gate-required');
+  await runGate(root, gateSession);
+  writeFileSync(join(root, 'source.txt'), 'changed after gate');
+  await assert.rejects(
+    rawReview(root, task.task, { author: 'codex', reviewer: 'claude', round: 1, gateSession }),
+    /full session gate/,
+  );
+});
+
+test('review snapshot includes required bundled skills outside the repository', (t) => {
+  const root = fixture(t);
+  const created = start(root);
+  const config = JSON.parse(
+    readFileSync(join(root, '.agent-workflow.json'), 'utf8'),
+  ) as ProjectConfig;
+  config.requiredSkills = ['workflow'];
+  writeFileSync(join(root, '.agent-workflow.json'), JSON.stringify(config));
+  const project = loadProject(root);
+  const snapshot = reviewSnapshot(project, readTask(project, created.task));
+  assert.match(snapshot!, /name: workflow/);
+  assert.match(snapshot!, /Never approve your own workflow request/);
+});
+
+test('review context includes unchanged dependencies and required project skills', (t) => {
+  const root = fixture(t, { reviewContext: ['source.txt'] });
+  const created = start(root);
+  mkdirSync(join(root, '.agents/skills/local-review'), { recursive: true });
+  writeFileSync(
+    join(root, '.agents/skills/local-review/SKILL.md'),
+    '---\nname: local-review\ndescription: Project review\n---\nCheck actual acceptance evidence.\n',
+  );
+  const config = JSON.parse(
+    readFileSync(join(root, '.agent-workflow.json'), 'utf8'),
+  ) as ProjectConfig;
+  config.requiredSkills = ['local-review'];
+  writeFileSync(join(root, '.agent-workflow.json'), JSON.stringify(config));
+  const snapshot = reviewSnapshot(loadProject(root), readTask(loadProject(root), created.task));
+  assert.match(snapshot!, /FILE source.txt\noriginal/);
+  assert.match(snapshot!, /Check actual acceptance evidence/);
+});
+
+test('review survives native pre/post hooks while lookalike commands invalidate the gate', async (t) => {
+  fakeReviewers(t);
+  for (const author of ['pi', 'codex', 'claude']) {
+    const root = fixture(t);
+    const task = start(root, author);
+    const key = sessionKey(root, author, 'review-test');
+    const reviewer = author === 'claude' ? 'codex' : 'claude';
+    const { pluginRoot, quote } = await import('../core/runtime.js');
+    const command = `node ${quote(pluginRoot + 'dist/bin/workflow.js')} review ${task.task} --author ${author} --reviewer ${reviewer} --round 1 --gate-session ${key}`;
+    const payload = {
+      cwd: root,
+      session_id: 'review-test',
+      tool_name: 'Bash',
+      tool_input: { command },
+    };
+    const config = JSON.parse(
+      readFileSync(join(root, '.agent-workflow.json')).toString('utf8'),
+    ) as ProjectConfig;
+    config.review = ['scripts/review.sh'];
+    writeFileSync(join(root, '.agent-workflow.json'), JSON.stringify(config));
+    const wrapper = {
+      ...payload,
+      tool_input: {
+        command: `REVIEW_GATE_SESSION=${key} scripts/review.sh ${task.task} ${author} ${reviewer} 1`,
+      },
+    };
+    await runGate(root, key);
+    assert.equal(
+      (await handle(author, { ...payload, hook_event_name: 'PreToolUse' })).decision,
+      undefined,
+    );
+    assert.equal(
+      (await handle(author, { ...wrapper, hook_event_name: 'PreToolUse' })).decision,
+      undefined,
+    );
+    assert.equal(
+      (await rawReview(root, task.task, { author, reviewer, round: 1, gateSession: key })).verdict,
+      'pass',
+    );
+    await handle(author, { ...wrapper, hook_event_name: 'PostToolUse' });
+    await handle(author, { ...payload, hook_event_name: 'PostToolUse' });
+    assert.equal(
+      (await rawReview(root, task.task, { author, reviewer, round: 2, gateSession: key })).verdict,
+      'pass',
+    );
+    await handle(author, {
+      ...payload,
+      hook_event_name: 'PreToolUse',
+      tool_input: { command: command + ' --extra' },
+    });
+    if (author === 'claude') {
+      await assert.rejects(
+        rawReview(root, task.task, { author, reviewer, round: 2, gateSession: key }),
+        /full session gate/,
+      );
+    }
+    const { withState } = await import('../core/state.js');
+    await handle(author, {
+      ...payload,
+      hook_event_name: 'PostToolUse',
+      tool_input: { command: command + ' --extra' },
+    });
+    assert.equal(await withState(root, key, (state) => state.pass), null);
+  }
+});
+
+test('additional rounds require an exact-task exception and retain preceding reports', async (t) => {
+  fakeReviewers(t);
+  const root = fixture(t);
+  const task = start(root);
+  const args = { author: 'codex', reviewer: 'claude' };
+  await assert.rejects(runReview(root, task.task, { ...args, round: 3 }), /configured task limit/);
+  const file = join(root, '.agent-workflow.json');
+  const config = JSON.parse(readFileSync(file).toString('utf8')) as ProjectConfig;
+  config.workflow.reviewExceptions = {
+    [task.task]: { maxRound: 3, reason: 'Explicit test user authorization' },
+  };
+  writeFileSync(file, JSON.stringify(config));
+  await assert.rejects(runReview(root, task.task, { ...args, round: 3 }), /preceding review/);
+  await runReview(root, task.task, { ...args, round: 1 });
+  await runReview(root, task.task, { ...args, round: 2 });
+  const extra = await runReview(root, task.task, { ...args, round: 3 });
+  assert.equal(extra.authorization, 'Explicit test user authorization');
+  const { withState } = await import('../core/state.js');
+  const { reviewKey } = await import('../core/review.js');
+  const state = await withState(root, reviewKey(readTask(loadProject(root), task.task)), (s) => s);
+  assert.equal(state.first!.round, 1);
+  assert.equal(state.second!.round, 2);
+  assert.equal(state.extraReviews![0]!.round, 3);
+  assert.equal(await hasReview(loadProject(root), task.task, fingerprint(root)), true);
+  await assert.rejects(runReview(root, task.task, { ...args, round: 3 }), /already recorded/);
+  await assert.rejects(runReview(root, task.task, { ...args, round: 4 }), /configured task limit/);
+  for (const entry of [
+    { maxRound: 3.5, reason: 'x' },
+    { maxRound: 3, reason: '' },
+    { maxRound: 11, reason: 'x' },
+  ]) {
+    assert.throws(() => flowConfig({ reviewExceptions: { 'task.md': entry } }), /exception/);
+  }
+  assert.throws(
+    () => flowConfig({ reviewExceptions: { '../escape': { maxRound: 3, reason: 'x' } } }),
+    /exception/,
+  );
+});
+
+test('personal install names the workspace settings and the session restart without changing permissions', (t) => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-user-workspace-')));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const plan = personalInstallPlan(home, join(home, '.config/agent-workflow'));
+  assert.equal(plan.workspace.path, process.env.AGENT_WORKFLOW_WORKSPACE);
+  assert.match(plan.workspace.claude, /permissions\.additionalDirectories/);
+  assert.match(plan.workspace.codex, /\[sandbox_workspace_write\]/);
+  assert.match(plan.instruction, /restart every open Claude Code and Codex session/);
+  const settings = JSON.parse(
+    plan.writes.find((w) => w.path.endsWith('.claude/settings.json'))!.content,
+  ) as HarnessSettings;
+  assert.equal(settings.permissions, undefined);
+});

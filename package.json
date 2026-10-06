@@ -1,0 +1,67 @@
+{
+  "name": "agent-workflow",
+  "version": "0.0.1",
+  "description": "Shared development workflow and guards for Pi, Claude Code and Codex",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.16"
+  },
+  "keywords": [
+    "pi-package"
+  ],
+  "bin": {
+    "agent-workflow": "./dist/bin/workflow.js"
+  },
+  "files": [
+    "dist",
+    "hooks",
+    "skills",
+    "examples",
+    ".claude-plugin",
+    ".codex-plugin",
+    "README.md",
+    "LICENSE",
+    "third-party",
+    "UPSTREAM.md",
+    "docs/flow.md",
+    "docs/usage.md",
+    "docs/configuration.md",
+    "docs/troubleshooting.md",
+    "CONTRIBUTING.md",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc",
+    "test": "npm run build && node --test dist/tests/*.test.js",
+    "verify-install": "node dist/scripts/verify-install.js",
+    "format": "prettier --write \"**/*.ts\"",
+    "format:check": "prettier --check \"**/*.ts\"",
+    "prepack": "npm run build"
+  },
+  "pi": {
+    "extensions": [
+      "./dist/adapters/pi.js"
+    ],
+    "skills": [
+      "./skills"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "@earendil-works/pi-tui": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "prettier": "3.9.9",
+    "typescript": "7.0.2"
+  }
+}
