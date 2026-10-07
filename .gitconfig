@@ -1,0 +1,6 @@
+# Legate per-repo git identity (tracked, so it travels with clones).
+# Git will NOT apply this automatically — activate once per clone with:
+#   git config --local include.path ../.gitconfig
+[user]
+	name = ghulando
+	email = gulando@proton.me
