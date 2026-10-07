@@ -255,7 +255,7 @@ function liveState(root: HistoryPlan['roots'], active: HistoryProcess[], now: nu
             typeof value.startedAt === 'number' &&
             Number.isFinite(value.startedAt)
               ? value.startedAt
-              : stat(file)!.mtimeMs;
+              : Math.round(stat(file)!.mtimeMs);
           oldestClaudeStart = Math.min(oldestClaudeStart, started);
         }
       }
@@ -285,7 +285,9 @@ function liveState(root: HistoryPlan['roots'], active: HistoryProcess[], now: nu
         running('claude') &&
         ['shell-snapshots', 'plans'].some((part) => inside(join(root.claude, part), path)) &&
         !stat(path)?.isDirectory() &&
-        (oldestClaudeStart === Infinity || (stat(path)?.mtimeMs ?? Infinity) >= oldestClaudeStart)
+        // Linux can report an mtime a fraction of a millisecond below the value it was set to.
+        (oldestClaudeStart === Infinity ||
+          Math.round(stat(path)?.mtimeMs ?? Infinity) >= oldestClaudeStart)
       ) {
         return 'Claude is running; possible live session sidecar';
       }
