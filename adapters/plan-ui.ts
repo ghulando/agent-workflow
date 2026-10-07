@@ -1,7 +1,7 @@
 import type { ExtensionAPI, ExtensionContext, Todo } from '@earendil-works/pi-coding-agent';
 import { Key } from '@earendil-works/pi-tui';
-import { getTextContent, isAssistantMessage } from './messages.js';
-import { extractTodoItems, markCompletedSteps, normalizeTodos } from './plan-utils.js';
+import { getTextContent, isAssistantMessage } from './messages.ts';
+import { extractTodoItems, markCompletedSteps, normalizeTodos } from './plan-utils.ts';
 
 const DISABLED_TOOLS = new Set(['edit', 'write']);
 

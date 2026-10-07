@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import type { PackedArchive, NativeHookOutput } from '../core/types.js';
+import type { PackedArchive, NativeHookOutput } from '../core/types.ts';
 // Optional native-loader checks. No model prompts, user configuration or trust changes.
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -8,12 +8,12 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const source = fileURLToPath(new URL('../../', import.meta.url));
+const source = fileURLToPath(new URL('../', import.meta.url));
 const [flag, loaderPath, ...extra] = process.argv.slice(2);
 
 if (flag && (flag !== '--pi-loader' || !loaderPath || extra.length)) {
   throw new Error(
-    'Usage: node dist/scripts/verify-hosts.js [--pi-loader /path/to/pi/dist/core/extensions/loader.js]',
+    'Usage: node scripts/verify-hosts.ts [--pi-loader /path/to/pi/dist/core/extensions/loader.js]',
   );
 }
 
@@ -40,7 +40,7 @@ try {
         }[];
       }>;
     };
-    const adapter = join(source, 'dist/adapters/pi.js');
+    const adapter = join(source, 'adapters/pi.ts');
     const loaded = await loadExtensions([adapter, adapter], root);
     assert.deepEqual(loaded.errors, []);
     assert.equal(loaded.extensions.length, 2);
@@ -124,7 +124,7 @@ try {
     console.log('Claude strict native validation of the packed plugin passed.');
   }
   // Codex hooks are exercised through their subprocess protocol, without a model run.
-  const result = spawnSync(process.execPath, [join(root, 'package/dist/bin/hook.js'), 'codex'], {
+  const result = spawnSync(process.execPath, [join(root, 'package/bin/hook.ts'), 'codex'], {
     encoding: 'utf8',
     input: JSON.stringify({
       cwd: root,

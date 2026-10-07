@@ -1,6 +1,6 @@
 import type { TestContext } from 'node:test';
-import type { PackageMetadata } from '../core/types.js';
-import './environment.js';
+import type { PackageMetadata } from '../core/types.ts';
+import './environment.ts';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -8,8 +8,8 @@ import { syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { install, installPlan } from '../core/install.js';
-import { installPersonal, personalInstallPlan } from '../core/personal-install.js';
+import { install, installPlan } from '../core/install.ts';
+import { installPersonal, personalInstallPlan } from '../core/personal-install.ts';
 
 function home(t: TestContext) {
   const dir = fs.realpathSync(fs.mkdtempSync(join(tmpdir(), 'workflow-install-transaction-')));

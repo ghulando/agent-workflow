@@ -1,6 +1,6 @@
 import type { ExtensionAPI, ExtensionContext, ToolEvent } from '@earendil-works/pi-coding-agent';
-import { handle } from '../core/runtime.js';
-import planMode from './plan-ui.js';
+import { handle } from '../core/runtime.ts';
+import planMode from './plan-ui.ts';
 
 // The factory needs no Pi runtime import: Pi supplies this API to the package.
 export default function workflow(pi: ExtensionAPI) {

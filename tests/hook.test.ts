@@ -1,5 +1,5 @@
-import type { NativeHookOutput } from '../core/types.js';
-import './environment.js';
+import type { NativeHookOutput } from '../core/types.ts';
+import './environment.ts';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
-const hook = fileURLToPath(new URL('../bin/hook.js', import.meta.url));
+const hook = fileURLToPath(new URL('../bin/hook.ts', import.meta.url));
 
 for (const harness of ['claude', 'codex']) {
   test(`${harness}: subprocess hook emits native denial and rejects malformed input`, (t) => {
@@ -77,10 +77,10 @@ test('ordinary prompts ignore malformed project config while approvals and tools
 
 test('Codex keeps the hook-capable native manifest without a shadowing root manifest', () => {
   const manifest = JSON.parse(
-    readFileSync(new URL('../../.codex-plugin/plugin.json', import.meta.url)).toString('utf8'),
+    readFileSync(new URL('../.codex-plugin/plugin.json', import.meta.url)).toString('utf8'),
   ) as { hooks: string };
   assert.equal(manifest.hooks, './hooks/codex.json');
-  assert.equal(existsSync(new URL('../../plugin.json', import.meta.url)), false);
+  assert.equal(existsSync(new URL('../plugin.json', import.meta.url)), false);
 });
 
 test('native tool hooks fail closed when the hook script is missing', (t) => {
@@ -91,7 +91,7 @@ test('native tool hooks fail closed when the hook script is missing', (t) => {
     ['hooks.json', 'CLAUDE_PLUGIN_ROOT'],
   ] as const) {
     const config = JSON.parse(
-      readFileSync(fileURLToPath(new URL(`../../hooks/${file}`, import.meta.url)), 'utf8'),
+      readFileSync(fileURLToPath(new URL(`../hooks/${file}`, import.meta.url)), 'utf8'),
     ) as { hooks: Record<string, { hooks: { command: string }[] }[]> };
     for (const event of ['PreToolUse', 'PostToolUse']) {
       const command = config.hooks[event]![0]!.hooks[0]!.command;
@@ -106,7 +106,7 @@ test('native tool hooks fail closed when the hook script is missing', (t) => {
       const live = spawnSync('sh', ['-c', command], {
         input: '{invalid',
         encoding: 'utf8',
-        env: { ...process.env, [variable]: fileURLToPath(new URL('../../', import.meta.url)) },
+        env: { ...process.env, [variable]: fileURLToPath(new URL('../', import.meta.url)) },
       });
       assert.equal(live.status, 2);
       assert.doesNotMatch(live.stderr, /could not run/);

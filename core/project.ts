@@ -1,8 +1,8 @@
-import type { Project, ProjectConfig } from './types.js';
+import type { Project, ProjectConfig } from './types.ts';
 import { execFileSync } from 'node:child_process';
 import { existsSync, lstatSync, readFileSync, readlinkSync, realpathSync } from 'node:fs';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
-import { flowConfig, personalConfig } from './flow-config.js';
+import { flowConfig, personalConfig } from './flow-config.ts';
 
 export const CONFIG = '.agent-workflow.json';
 

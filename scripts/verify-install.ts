@@ -3,7 +3,7 @@ import type {
   PackageMetadata,
   HarnessSettings,
   Marketplace,
-} from '../core/types.js';
+} from '../core/types.ts';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync, readFileSync, readdirSync, existsSync } from 'node:fs';
@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const source = fileURLToPath(new URL('../../', import.meta.url));
+const source = fileURLToPath(new URL('../', import.meta.url));
 const temporary = mkdtempSync(join(tmpdir(), 'agent-workflow-packed-'));
 const previous = process.env.AGENT_WORKFLOW_HOME;
 
@@ -29,7 +29,7 @@ try {
   );
   const packed = (packOutput as PackedArchive[])[0]!;
   for (const { path } of packed.files) {
-    assert.equal(/\.ts$/.test(path), false, `TypeScript source shipped: ${path}`);
+    assert.equal(/^dist\//.test(path), false, `compiled output shipped: ${path}`);
     assert.equal(
       /(?:^|\/)tsconfig(?:\.[^/]*)?\.json$/.test(path),
       false,
@@ -41,7 +41,7 @@ try {
   const app = join(temporary, 'app');
   mkdirSync(app);
   execFileSync('git', ['init', '-q', '--initial-branch=main', app]);
-  execFileSync(process.execPath, [join(temporary, 'package/dist/bin/workflow.js'), 'install', app]);
+  execFileSync(process.execPath, [join(temporary, 'package/bin/workflow.ts'), 'install', app]);
   const installed = join(app, 'plugins/agent-workflow');
   const rawInstalled: unknown = JSON.parse(readFileSync(join(installed, 'package.json'), 'utf8'));
   const installedMetadata = rawInstalled as PackageMetadata;
@@ -124,8 +124,8 @@ try {
   );
   assert.equal(resolve(app, codex.plugins[0]!.source.path), installed);
   const { handle } = (await import(
-    join(installed, 'dist/core/runtime.js')
-  )) as typeof import('../core/runtime.js');
+    join(installed, 'core/runtime.ts')
+  )) as typeof import('../core/runtime.ts');
   for (const harness of ['pi', 'claude', 'codex']) {
     const result = await handle(harness, {
       cwd: app,
@@ -146,16 +146,16 @@ try {
     process.execPath,
     [
       '--test',
-      ...readdirSync(join(installed, 'dist/tests'))
-        .filter((name) => name.endsWith('.test.js'))
+      ...readdirSync(join(installed, 'tests'))
+        .filter((name) => name.endsWith('.test.ts'))
         .sort()
-        .map((name) => join(installed, 'dist/tests', name)),
+        .map((name) => join(installed, 'tests', name)),
     ],
     { cwd: app, encoding: 'utf8' },
   );
   if (suite.status !== 0) throw new Error(suite.stdout + suite.stderr);
   console.log(
-    'Packed JavaScript installed in a fresh Git repo; all three configurations and guards passed; installed package tests passed.',
+    'Packed TypeScript installed in a fresh Git repo; all three configurations and guards passed; installed package tests passed.',
   );
 } finally {
   if (previous === undefined) {

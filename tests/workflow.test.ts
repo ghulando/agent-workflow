@@ -1,6 +1,6 @@
 import type { TestContext } from 'node:test';
-import type { ToolInput, HookPayload, ProjectConfig, HarnessSettings } from '../core/types.js';
-import './environment.js';
+import type { ToolInput, HookPayload, ProjectConfig, HarnessSettings } from '../core/types.ts';
+import './environment.ts';
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import {
@@ -20,13 +20,13 @@ import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import test from 'node:test';
-import { handle, pluginRoot, quote, runGate } from '../core/runtime.js';
-import { sessionKey, fingerprint, stateDirectory, withState } from '../core/state.js';
-import { hookOutput } from '../adapters/hooks.js';
-import { install, installPlan } from '../core/install.js';
-import { loadProject } from '../core/project.js';
-import { skills } from '../core/context.js';
-import { evaluatePolicy } from '../core/policy.js';
+import { handle, pluginRoot, quote, runGate } from '../core/runtime.ts';
+import { sessionKey, fingerprint, stateDirectory, withState } from '../core/state.ts';
+import { hookOutput } from '../adapters/hooks.ts';
+import { install, installPlan } from '../core/install.ts';
+import { loadProject } from '../core/project.ts';
+import { skills } from '../core/context.ts';
+import { evaluatePolicy } from '../core/policy.ts';
 
 function fixture(t: TestContext, overrides = {}) {
   const root = mkdtempSync(join(tmpdir(), 'workflow-test-'));
@@ -397,12 +397,12 @@ test('task status completion checks include trailing Markdown spaces and comment
 
 test('a plugin at the project root protects shipped paths without protecting application files', async (t) => {
   const root = realpathSync(fixture(t));
-  for (const path of ['dist', 'skills', 'package.json']) {
+  for (const path of ['core', 'skills', 'package.json']) {
     cpSync(resolve(pluginRoot, path), join(root, path), { recursive: true });
   }
   const { handle: localHandle } = (await import(
-    pathToFileURL(join(root, 'dist/core/runtime.js')).href
-  )) as typeof import('../core/runtime.js');
+    pathToFileURL(join(root, 'core/runtime.ts')).href
+  )) as typeof import('../core/runtime.ts');
   const check = (path: string) =>
     localHandle('codex', {
       cwd: root,
@@ -413,8 +413,6 @@ test('a plugin at the project root protects shipped paths without protecting app
     });
   // Reintroducing '/**' at the root leaves every shipped path unprotected.
   for (const path of [
-    'dist/core/runtime.js',
-    'dist/bin/workflow.js',
     'skills/flow-test/SKILL.md',
     'README.md',
     'package.json',
@@ -732,7 +730,7 @@ test('native edits preview full contents and post hooks accept already-applied e
 });
 
 test('patch previews honor anchors, EOF, original-file chunks and append-only updates', async (t) => {
-  const { previewPatch } = await import('../core/tools.js');
+  const { previewPatch } = await import('../core/tools.ts');
   const root = realpathSync(fixture(t));
   writeFileSync(join(root, 'source.txt'), 'first\nrepeat\nsecond\nrepeat\n');
   const preview = (body: string) =>
@@ -856,7 +854,7 @@ test('writes to absolute paths outside the project are left to the harness, even
 test('the workflow runner task commands work on protected branches', async (t) => {
   const root = fixture(t);
   execFileSync('git', ['checkout', '-q', '-b', 'main'], { cwd: root });
-  const runner = `node ${quote(resolve(pluginRoot, 'dist/bin/workflow.js'))}`;
+  const runner = `node ${quote(resolve(pluginRoot, 'bin/workflow.ts'))}`;
   for (const command of [
     `${runner} task-start login 'Add login' --author claude --fix`,
     `${runner} task-start login 'Add login' --author codex --small --fix`,
@@ -929,7 +927,7 @@ test('the workflow runner task commands work on protected branches', async (t) =
 test('a gate inside a pipeline, chain or redirect is refused before it loses its receipt', async (t) => {
   const root = fixture(t);
   execFileSync('git', ['checkout', '-q', '-b', 'feature/gate'], { cwd: root });
-  const runner = `node ${quote(resolve(pluginRoot, 'dist/bin/workflow.js'))}`;
+  const runner = `node ${quote(resolve(pluginRoot, 'bin/workflow.ts'))}`;
   const gate = `${runner} gate ${sessionKey(root, 'claude', 'test-session')}`;
   for (const command of [
     `${gate} | tail -8`,
@@ -941,7 +939,7 @@ test('a gate inside a pipeline, chain or redirect is refused before it loses its
     assert.equal(result.decision, 'deny', command);
     assert.match(result.reason!, /plain command on its own/, command);
   }
-  for (const command of [gate, `${gate} 2>&1`, 'grep -n "workflow.js gate" docs/usage.md']) {
+  for (const command of [gate, `${gate} 2>&1`, 'grep -n "workflow.ts gate" docs/usage.md']) {
     const result = await call(root, 'claude', 'PreToolUse', 'Bash', { command });
     assert.doesNotMatch(result.reason ?? '', /plain command on its own/, command);
   }
@@ -954,7 +952,7 @@ test('history runners work from protected-branch subdirectories without widening
       execFileSync('git', ['checkout', '-q', '-b', 'main'], { cwd: root });
       const sub = join(root, 'sub');
       mkdirSync(sub);
-      const runner = `node ${quote(resolve(pluginRoot, 'dist/bin/workflow.js'))}`;
+      const runner = `node ${quote(resolve(pluginRoot, 'bin/workflow.ts'))}`;
       for (const cwd of [root, sub]) {
         for (const verb of ['history-plan', 'history-digest']) {
           assert.equal(
@@ -1183,7 +1181,7 @@ test('a state lock left by a dead process is reclaimed and a live owner still bl
   rmSync(lock);
   // Racing processes reclaim the stale lock once and never overlap: no update is lost.
   writeFileSync(lock, dead);
-  const script = `import { withState } from ${JSON.stringify(resolve(pluginRoot, 'dist/core/state.js'))};
+  const script = `import { withState } from ${JSON.stringify(resolve(pluginRoot, 'core/state.ts'))};
 for (let i = 0; i < 10; i++) await withState(${JSON.stringify(root)}, '${key}', async state => { const seen = state.revision; await new Promise(r => setTimeout(r, 1)); state.revision = seen + 1; });`;
   const runs = Array.from(
     { length: 5 },

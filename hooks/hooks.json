@@ -1,8 +1,8 @@
 {
   "hooks": {
-    "SessionStart": [{ "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/bin/hook.js\" claude", "timeout": 60 }] }],
-    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/bin/hook.js\" claude", "timeout": 60 }] }],
-    "PreToolUse": [{ "matcher": ".*", "hooks": [{ "type": "command", "command": "f=\"${CLAUDE_PLUGIN_ROOT}/dist/bin/hook.js\"; [ -f \"$f\" ] || { echo \"agent-workflow hook is missing at $f; restart Claude Code after plugin updates\" >&2; exit 2; }; node \"$f\" claude || { s=$?; [ $s -eq 2 ] && exit 2; echo \"agent-workflow hook could not run (exit $s)\" >&2; exit 2; }", "timeout": 60 }] }],
-    "PostToolUse": [{ "matcher": ".*", "hooks": [{ "type": "command", "command": "f=\"${CLAUDE_PLUGIN_ROOT}/dist/bin/hook.js\"; [ -f \"$f\" ] || { echo \"agent-workflow hook is missing at $f; restart Claude Code after plugin updates\" >&2; exit 2; }; node \"$f\" claude || { s=$?; [ $s -eq 2 ] && exit 2; echo \"agent-workflow hook could not run (exit $s)\" >&2; exit 2; }", "timeout": 60 }] }]
+    "SessionStart": [{ "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hook.ts\" claude", "timeout": 60 }] }],
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/hook.ts\" claude", "timeout": 60 }] }],
+    "PreToolUse": [{ "matcher": ".*", "hooks": [{ "type": "command", "command": "f=\"${CLAUDE_PLUGIN_ROOT}/bin/hook.ts\"; [ -f \"$f\" ] || { echo \"agent-workflow hook is missing at $f; restart Claude Code after plugin updates\" >&2; exit 2; }; node \"$f\" claude || { s=$?; [ $s -eq 2 ] && exit 2; echo \"agent-workflow hook could not run (exit $s)\" >&2; exit 2; }", "timeout": 60 }] }],
+    "PostToolUse": [{ "matcher": ".*", "hooks": [{ "type": "command", "command": "f=\"${CLAUDE_PLUGIN_ROOT}/bin/hook.ts\"; [ -f \"$f\" ] || { echo \"agent-workflow hook is missing at $f; restart Claude Code after plugin updates\" >&2; exit 2; }; node \"$f\" claude || { s=$?; [ $s -eq 2 ] && exit 2; echo \"agent-workflow hook could not run (exit $s)\" >&2; exit 2; }", "timeout": 60 }] }]
   }
 }

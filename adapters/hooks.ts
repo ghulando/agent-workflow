@@ -1,4 +1,4 @@
-import type { HookResult } from '../core/types.js';
+import type { HookResult } from '../core/types.ts';
 
 export function hookOutput(
   harness: string | undefined,

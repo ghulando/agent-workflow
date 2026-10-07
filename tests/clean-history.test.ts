@@ -1,4 +1,4 @@
-import './environment.js';
+import './environment.ts';
 import type { TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -17,7 +17,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
-import type { HistoryProcess } from '../core/types.js';
+import type { HistoryProcess } from '../core/types.ts';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
@@ -27,10 +27,10 @@ import {
   historyHarnesses,
   planClean,
   saveCleanPlan,
-} from '../core/clean-history.js';
-import { skills } from '../core/context.js';
-import { loadProject } from '../core/project.js';
-import { pluginRoot } from '../core/runtime.js';
+} from '../core/clean-history.ts';
+import { skills } from '../core/context.ts';
+import { loadProject } from '../core/project.ts';
+import { pluginRoot } from '../core/runtime.ts';
 
 test('running harness prompt appends and new live children do not expand reviewed deletion', (t) => {
   const { put } = fixture(t);
@@ -933,7 +933,7 @@ test('CLI plans, digests and applies only a fixture home using an injected proce
   );
   const env = { ...process.env, PATH: dirname(ps) + ':' + process.env.PATH };
   const run = (...args: string[]) =>
-    spawnSync(process.execPath, [join(pluginRoot, 'dist/bin/workflow.js'), ...args], {
+    spawnSync(process.execPath, [join(pluginRoot, 'bin/workflow.ts'), ...args], {
       cwd: home,
       env,
       encoding: 'utf8',
@@ -1058,7 +1058,7 @@ test('the skill ships in the catalog with user-only metadata and CLI grammar', (
   assert.equal(skill.bundled, true);
   assert.match(skill.content, /disable-model-invocation: true/);
   assert.match(skill.content, /Refuse unless the user explicitly invoked/);
-  const help = spawnSync(process.execPath, [join(pluginRoot, 'dist/bin/workflow.js'), '--help'], {
+  const help = spawnSync(process.execPath, [join(pluginRoot, 'bin/workflow.ts'), '--help'], {
     encoding: 'utf8',
   });
   assert.match(help.stdout, /history-plan/);

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { parseCommand } from '../core/cli.js';
-import { runGate } from '../core/runtime.js';
+import { parseCommand } from '../core/cli.ts';
+import { runGate } from '../core/runtime.ts';
 
 const help = `agent-workflow commands:
   install-plan <repo> [--repair]    Preview project installation
@@ -40,7 +40,7 @@ try {
       case 'history-digest':
       case 'history-clean': {
         const { planClean, saveCleanPlan, digestHistory, applyClean, historyHarnesses } =
-          await import('../core/clean-history.js');
+          await import('../core/clean-history.ts');
         if (command === 'history-clean') {
           print(applyClean(positional[0]!, flags.confirm as string));
         } else if (command === 'history-digest') {
@@ -56,7 +56,7 @@ try {
         break;
       case 'install':
       case 'install-plan': {
-        const { install, installPlan } = await import('../core/install.js');
+        const { install, installPlan } = await import('../core/install.ts');
         if (command === 'install-plan') {
           print(installPlan(positional[0]!, flags));
         } else {
@@ -66,7 +66,7 @@ try {
       }
       case 'install-user': {
         const { personalInstallPlan, installPersonal } =
-          await import('../core/personal-install.js');
+          await import('../core/personal-install.ts');
         const options = { repair: flags.repair as boolean | undefined };
         print(
           flags.apply
@@ -76,24 +76,24 @@ try {
         break;
       }
       case 'setup': {
-        const { proposeSetup } = await import('../core/setup.js');
+        const { proposeSetup } = await import('../core/setup.ts');
         print(proposeSetup(positional[0]!));
         break;
       }
       case 'setup-apply': {
-        const { applySetup } = await import('../core/setup.js');
+        const { applySetup } = await import('../core/setup.ts');
         print(applySetup(positional[0]!, positional[1]!));
         break;
       }
       case 'doctor': {
-        const { doctor } = await import('../core/doctor.js');
+        const { doctor } = await import('../core/doctor.ts');
         const result = doctor(process.cwd(), flags.author as string);
         print(result);
         if (result.issues.length) process.exitCode = 1;
         break;
       }
       case 'task-start': {
-        const { startTask } = await import('../core/tasks.js');
+        const { startTask } = await import('../core/tasks.ts');
         print(
           startTask(process.cwd(), {
             id: positional[0]!,
@@ -105,17 +105,17 @@ try {
         break;
       }
       case 'task-resume': {
-        const { resumeTask } = await import('../core/tasks.js');
+        const { resumeTask } = await import('../core/tasks.ts');
         print(resumeTask(process.cwd(), positional[0]!));
         break;
       }
       case 'task-handoff': {
-        const { handoffTask } = await import('../core/tasks.js');
+        const { handoffTask } = await import('../core/tasks.ts');
         print(handoffTask(process.cwd(), positional[0]!, flags.author as string));
         break;
       }
       case 'review': {
-        const { runReview } = await import('../core/review.js');
+        const { runReview } = await import('../core/review.ts');
         const result = await runReview(process.cwd(), positional[0]!, {
           ...flags,
           author: flags.author as string,
@@ -128,7 +128,7 @@ try {
         break;
       }
       case 'review-recover': {
-        const { recoverReview } = await import('../core/review.js');
+        const { recoverReview } = await import('../core/review.ts');
         print(
           await recoverReview(process.cwd(), positional[0]!, {
             stoppedReviewer: flags['stopped-reviewer'] as boolean | undefined,
@@ -137,10 +137,10 @@ try {
         break;
       }
       case 'review-status': {
-        const { loadProject } = await import('../core/project.js');
-        const { readTask } = await import('../core/tasks.js');
-        const { reviewKey } = await import('../core/review.js');
-        const { withState } = await import('../core/state.js');
+        const { loadProject } = await import('../core/project.ts');
+        const { readTask } = await import('../core/tasks.ts');
+        const { reviewKey } = await import('../core/review.ts');
+        const { withState } = await import('../core/state.ts');
         const project = loadProject(process.cwd());
         const task = readTask(project, positional[0]!);
         print(

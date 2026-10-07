@@ -1,4 +1,4 @@
-import type { ParsedCommand } from './types.js';
+import type { ParsedCommand } from './types.ts';
 
 // Shared CLI grammar: the runner and hooks accept the same options and ordering.
 const commandSpecs: Record<string, { count: number; options?: string[]; required?: string[] }> = {

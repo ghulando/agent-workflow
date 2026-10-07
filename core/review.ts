@@ -1,4 +1,4 @@
-import type { Project, Task, ReviewVerdict, ReviewerSettings } from './types.js';
+import type { Project, Task, ReviewVerdict, ReviewerSettings } from './types.ts';
 import { spawn, spawnSync } from 'node:child_process';
 import {
   chmodSync,
@@ -13,11 +13,11 @@ import {
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { reviewerChoices } from './flow-config.js';
-import { skills } from './context.js';
-import { currentBranch, git, loadProject, matches, projectPath } from './project.js';
-import { readTask, taskWorkspace } from './tasks.js';
-import { digest, fingerprint, stateDirectory, withState } from './state.js';
+import { reviewerChoices } from './flow-config.ts';
+import { skills } from './context.ts';
+import { currentBranch, git, loadProject, matches, projectPath } from './project.ts';
+import { readTask, taskWorkspace } from './tasks.ts';
+import { digest, fingerprint, stateDirectory, withState } from './state.ts';
 
 export function reviewCommand(
   reviewer: string,

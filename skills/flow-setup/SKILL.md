@@ -3,7 +3,7 @@ name: flow-setup
 description: Inspect a new repo and propose stack, checks and workflow configuration for user review. Use for project onboarding.
 ---
 
-Run `node <plugin-root>/dist/bin/workflow.js setup <repo>` for a read-only JSON proposal. Inspect instructions, manifests, existing CI/tests and documented commands. The bounded scan identifies Vue/TypeScript, .NET, Python, Go and mixed workspaces; it does not prescribe frameworks, architecture, libraries or versions.
+Run `node <plugin-root>/bin/workflow.ts setup <repo>` for a read-only JSON proposal. Inspect instructions, manifests, existing CI/tests and documented commands. The bounded scan identifies Vue/TypeScript, .NET, Python, Go and mixed workspaces; it does not prescribe frameworks, architecture, libraries or versions.
 
 Review the full gate, protected branches, branch prefixes, task directory, project skills and available reviewers with the user. Root-only checks are insufficient for multi-application workspaces. Python tooling and framework choices come from the repo. Preserve hooks, permissions and plugins.
 

@@ -1,6 +1,6 @@
 import type { TestContext } from 'node:test';
-import type { ReviewRecord, RunningReview, PackageMetadata } from '../core/types.js';
-import './environment.js';
+import type { ReviewRecord, RunningReview, PackageMetadata } from '../core/types.ts';
+import './environment.ts';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import {
@@ -20,13 +20,13 @@ import {
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import test from 'node:test';
-import { parseCommand } from '../core/cli.js';
-import { doctor } from '../core/doctor.js';
-import { handle, pluginRoot, quote } from '../core/runtime.js';
-import { recoverReview, reviewKey } from '../core/review.js';
-import { handoffTask, resumeTask, startTask, readTask, taskWorkspace } from '../core/tasks.js';
-import { loadProject } from '../core/project.js';
-import { sessionKey, withState } from '../core/state.js';
+import { parseCommand } from '../core/cli.ts';
+import { doctor } from '../core/doctor.ts';
+import { handle, pluginRoot, quote } from '../core/runtime.ts';
+import { recoverReview, reviewKey } from '../core/review.ts';
+import { handoffTask, resumeTask, startTask, readTask, taskWorkspace } from '../core/tasks.ts';
+import { loadProject } from '../core/project.ts';
+import { sessionKey, withState } from '../core/state.ts';
 
 function fixture(t: TestContext, workflow = {}) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-lifecycle-')));
@@ -114,25 +114,17 @@ test('hooks recognize reordered review arguments and identical runner copies wit
     tool_input: { command },
   });
   assert.equal(
-    (
-      await handle(
-        'codex',
-        payload(`node ${quote(join(copy, 'dist/bin/workflow.js'))} gate ${key}`),
-      )
-    ).decision,
+    (await handle('codex', payload(`node ${quote(join(copy, 'bin/workflow.ts'))} gate ${key}`)))
+      .decision,
     undefined,
   );
-  const command = `node ${quote(join(copy, 'dist/bin/workflow.js'))} review --round 1 --author codex docs/tasks/task.md --gate-session ${key} --reviewer claude`;
+  const command = `node ${quote(join(copy, 'bin/workflow.ts'))} review --round 1 --author codex docs/tasks/task.md --gate-session ${key} --reviewer claude`;
   assert.equal((await handle('codex', payload(command))).decision, undefined);
   assert.equal((await handle('codex', payload(command + ' --extra'))).decision, 'deny');
-  writeFileSync(join(copy, 'dist/core/runtime.js'), 'modified runner');
+  writeFileSync(join(copy, 'core/runtime.ts'), 'modified runner');
   assert.equal(
-    (
-      await handle(
-        'codex',
-        payload(`node ${quote(join(copy, 'dist/bin/workflow.js'))} gate ${key}`),
-      )
-    ).decision,
+    (await handle('codex', payload(`node ${quote(join(copy, 'bin/workflow.ts'))} gate ${key}`)))
+      .decision,
     'deny',
   );
 });
@@ -202,7 +194,7 @@ test('explicit stopped-reviewer recovery handles launch records without losing v
 
 test('CLI help, doctor exit status and current-harness diagnostics are observable', async (t) => {
   const root = fixture(t, { reviewers: {} });
-  const runner = join(pluginRoot, 'dist/bin/workflow.js');
+  const runner = join(pluginRoot, 'bin/workflow.ts');
   const help = spawnSync(process.execPath, [runner], { cwd: root, encoding: 'utf8' });
   assert.equal(help.status, 0);
   assert.match(help.stdout, /agent-workflow commands/);
@@ -250,14 +242,14 @@ test('README setup and task-start work in an isolated HOME and repository', (t) 
     AGENT_WORKFLOW_HOME: join(home, '.config/agent-workflow'),
   };
   const run = (...args: string[]) =>
-    execFileSync(process.execPath, [join(pluginRoot, 'dist/bin/workflow.js'), ...args], {
+    execFileSync(process.execPath, [join(pluginRoot, 'bin/workflow.ts'), ...args], {
       cwd: root,
       env,
       encoding: 'utf8',
     });
   run('install-user', '--apply');
   const proposal = JSON.parse(run('setup', '.')) as ReturnType<
-    typeof import('../core/setup.js').proposeSetup
+    typeof import('../core/setup.ts').proposeSetup
   >;
   proposal.config.workflow.reviewers = { claude: {} };
   const path = join(home, 'proposal.json');

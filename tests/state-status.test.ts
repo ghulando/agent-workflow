@@ -1,6 +1,6 @@
 import type { TestContext } from 'node:test';
-import type { Action } from '../core/types.js';
-import './environment.js';
+import type { Action } from '../core/types.ts';
+import './environment.ts';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -17,9 +17,9 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { fingerprint, sessionKey } from '../core/state.js';
-import { handle, runGate } from '../core/runtime.js';
-import { claimsDone } from '../core/status.js';
+import { fingerprint, sessionKey } from '../core/state.ts';
+import { handle, runGate } from '../core/runtime.ts';
+import { claimsDone } from '../core/status.ts';
 
 function repo(t: TestContext, config = {}) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-state-status-')));
