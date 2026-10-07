@@ -1,4 +1,4 @@
-import type { WorkflowState } from './types.js';
+import type { WorkflowState } from './types.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   closeSync,
@@ -17,8 +17,8 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { git } from './project.js';
-import { personalRoot } from './flow-config.js';
+import { git } from './project.ts';
+import { personalRoot } from './flow-config.ts';
 
 export const digest = (value: unknown) =>
   createHash('sha256').update(JSON.stringify(value)).digest('hex');

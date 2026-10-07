@@ -1,9 +1,9 @@
-import type { Project, Skill } from './types.js';
+import type { Project, Skill } from './types.ts';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { authors, eligibleReviewers, workspaceRoot } from './flow-config.js';
-import { CONFIG, projectPath } from './project.js';
+import { authors, eligibleReviewers, workspaceRoot } from './flow-config.ts';
+import { CONFIG, projectPath } from './project.ts';
 
 export function skills(project: Project) {
   const found: Skill[] = [];
@@ -41,7 +41,7 @@ export function skills(project: Project) {
       found.push({ name, description, file, content });
     }
   }
-  const bundled = fileURLToPath(new URL('../../skills/', import.meta.url));
+  const bundled = fileURLToPath(new URL('../skills/', import.meta.url));
   for (const entry of readdirSync(bundled, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const file = resolve(bundled, entry.name, 'SKILL.md');

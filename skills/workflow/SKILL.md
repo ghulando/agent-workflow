@@ -11,7 +11,7 @@ Use [flow-team](../flow-team/SKILL.md) only when the user explicitly asks to run
 
 Read AGENTS.md, CLAUDE.md if present, .agent-workflow.json and the task. Inspect the branch and existing changes. Never stash, reset, restore, clean or switch a dirty tree to manufacture a baseline.
 
-Substantial tasks use [flow-spec](../flow-spec/SKILL.md) for observable acceptance criteria and a short plan before coding. Small, clear fixes proceed directly. Use `node <plugin-root>/dist/bin/workflow.js task-start <id> '<title>' --author <pi|codex|claude>`; add `--fix` for fixes and `--small` for small tasks. The command creates the configured branch from the configured base only on a clean tree. Preserve existing work and ask how tasks should be separated when it blocks a new branch.
+Substantial tasks use [flow-spec](../flow-spec/SKILL.md) for observable acceptance criteria and a short plan before coding. Small, clear fixes proceed directly. Use `node <plugin-root>/bin/workflow.ts task-start <id> '<title>' --author <pi|codex|claude>`; add `--fix` for fixes and `--small` for small tasks. The command creates the configured branch from the configured base only on a clean tree. Preserve existing work and ask how tasks should be separated when it blocks a new branch.
 
 For existing work, use `task-resume <task-file>` and [flow-handoff](../flow-handoff/SKILL.md). Recorded progress is context to verify, not proof.
 

@@ -5,7 +5,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node: [22, 24]
+        # 22.18 is the oldest Node that runs TypeScript without a flag.
+        node: ['22.18', 24]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

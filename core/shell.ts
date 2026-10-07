@@ -1,4 +1,4 @@
-import type { ReadCommand, ShellKind } from './types.js';
+import type { ReadCommand, ShellKind } from './types.ts';
 import { existsSync, realpathSync } from 'node:fs';
 import { dirname, isAbsolute, resolve } from 'node:path';
 

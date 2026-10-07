@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import type { HookPayload } from '../core/types.js';
-import { handle } from '../core/runtime.js';
-import { hookOutput } from '../adapters/hooks.js';
+import type { HookPayload } from '../core/types.ts';
+import { handle } from '../core/runtime.ts';
+import { hookOutput } from '../adapters/hooks.ts';
 
 try {
   let raw = '';

@@ -7,28 +7,28 @@ import type {
   ParsedCommand,
   Extension,
   PackageMetadata,
-} from './types.js';
+} from './types.ts';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { readFileSync, realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, relative, resolve } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
-import { currentBranch, findRoot, inside, loadProject, matches, projectPath } from './project.js';
-import { startupContext } from './context.js';
-import { commands, shellKind } from './shell.js';
-import { normalize } from './tools.js';
-import { HOOK_BUDGET, digest, fingerprint, invalidate, sessionKey, withState } from './state.js';
-import { hasReview } from './review.js';
-import { evaluatePolicy, approvalReason } from './policy.js';
-import { parseCommand } from './cli.js';
-import { packageDigest } from './package.js';
-import { claimsDone, completionStatus } from './status.js';
+import { currentBranch, findRoot, inside, loadProject, matches, projectPath } from './project.ts';
+import { startupContext } from './context.ts';
+import { commands, shellKind } from './shell.ts';
+import { normalize } from './tools.ts';
+import { HOOK_BUDGET, digest, fingerprint, invalidate, sessionKey, withState } from './state.ts';
+import { hasReview } from './review.ts';
+import { evaluatePolicy, approvalReason } from './policy.ts';
+import { parseCommand } from './cli.ts';
+import { packageDigest } from './package.ts';
+import { claimsDone, completionStatus } from './status.ts';
 
-export const pluginRoot = fileURLToPath(new URL('../../', import.meta.url));
+export const pluginRoot = fileURLToPath(new URL('../', import.meta.url));
 export const quote = (text: string) => "'" + text.replace(/'/g, "'\\''") + "'";
 
 export function gateCommand(key: string) {
-  return `node ${quote(resolve(pluginRoot, 'dist/bin/workflow.js'))} gate ${key}`;
+  return `node ${quote(resolve(pluginRoot, 'bin/workflow.ts'))} gate ${key}`;
 }
 
 function runnerCall(action: Action, root: string) {
@@ -47,10 +47,10 @@ function runnerCall(action: Action, root: string) {
   try {
     if (cwd !== root && !inside(root, realpathSync(cwd))) return null;
     const path = realpathSync(resolve(action.cwd, runner));
-    if (path !== realpathSync(resolve(pluginRoot, 'dist/bin/workflow.js'))) {
-      const candidate = dirname(dirname(dirname(path)));
+    if (path !== realpathSync(resolve(pluginRoot, 'bin/workflow.ts'))) {
+      const candidate = dirname(dirname(path));
       if (
-        path !== resolve(candidate, 'dist/bin/workflow.js') ||
+        path !== resolve(candidate, 'bin/workflow.ts') ||
         packageDigest(candidate) !== packageDigest(pluginRoot)
       ) {
         return null;
@@ -69,10 +69,10 @@ function isGate(call: ParsedCommand | null, key: string) {
 // A gate the hook cannot recognize loses its receipt on PostToolUse.
 function strandedGate(command: string) {
   const parts = commands(command);
-  if (!parts) return /workflow\.js\S*\s+gate\b/.test(command);
+  if (!parts) return /workflow\.ts\S*\s+gate\b/.test(command);
   return (
     parts.length > 1 &&
-    parts.some((s) => s[0] === 'node' && s[1]?.endsWith('workflow.js') && s[2] === 'gate')
+    parts.some((s) => s[0] === 'node' && s[1]?.endsWith('workflow.ts') && s[2] === 'gate')
   );
 }
 

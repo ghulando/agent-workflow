@@ -5,7 +5,7 @@ import type {
   HistoryNotice,
   HistoryPlan,
   HistoryProcess,
-} from './types.js';
+} from './types.ts';
 import { randomUUID, createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import {
@@ -20,8 +20,8 @@ import {
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
-import { personalRoot, workspaceRoot } from './flow-config.js';
-import { privateDirectory } from './state.js';
+import { personalRoot, workspaceRoot } from './flow-config.ts';
+import { privateDirectory } from './state.ts';
 
 const harnessNames: Harness[] = ['claude', 'pi', 'codex'];
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
@@ -255,7 +255,7 @@ function liveState(root: HistoryPlan['roots'], active: HistoryProcess[], now: nu
             typeof value.startedAt === 'number' &&
             Number.isFinite(value.startedAt)
               ? value.startedAt
-              : stat(file)!.mtimeMs;
+              : Math.round(stat(file)!.mtimeMs);
           oldestClaudeStart = Math.min(oldestClaudeStart, started);
         }
       }
@@ -285,7 +285,9 @@ function liveState(root: HistoryPlan['roots'], active: HistoryProcess[], now: nu
         running('claude') &&
         ['shell-snapshots', 'plans'].some((part) => inside(join(root.claude, part), path)) &&
         !stat(path)?.isDirectory() &&
-        (oldestClaudeStart === Infinity || (stat(path)?.mtimeMs ?? Infinity) >= oldestClaudeStart)
+        // Linux can report an mtime a fraction of a millisecond below the value it was set to.
+        (oldestClaudeStart === Infinity ||
+          Math.round(stat(path)?.mtimeMs ?? Infinity) >= oldestClaudeStart)
       ) {
         return 'Claude is running; possible live session sidecar';
       }

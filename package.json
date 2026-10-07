@@ -5,16 +5,21 @@
   "type": "module",
   "license": "MIT",
   "engines": {
-    "node": ">=22.16"
+    "node": ">=22.18"
   },
   "keywords": [
     "pi-package"
   ],
   "bin": {
-    "agent-workflow": "./dist/bin/workflow.js"
+    "agent-workflow": "./bin/workflow.ts"
   },
   "files": [
-    "dist",
+    "adapters",
+    "bin",
+    "core",
+    "scripts/verify-hosts.ts",
+    "scripts/verify-install.ts",
+    "tests",
     "hooks",
     "skills",
     "examples",
@@ -32,16 +37,15 @@
     "CHANGELOG.md"
   ],
   "scripts": {
-    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc",
-    "test": "npm run build && node --test dist/tests/*.test.js",
-    "verify-install": "node dist/scripts/verify-install.js",
+    "typecheck": "tsc",
+    "test": "npm run typecheck && node --test tests/*.test.ts",
+    "verify-install": "node scripts/verify-install.ts",
     "format": "prettier --write \"**/*.ts\"",
-    "format:check": "prettier --check \"**/*.ts\"",
-    "prepack": "npm run build"
+    "format:check": "prettier --check \"**/*.ts\""
   },
   "pi": {
     "extensions": [
-      "./dist/adapters/pi.js"
+      "./adapters/pi.ts"
     ],
     "skills": [
       "./skills"

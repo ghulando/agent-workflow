@@ -7,9 +7,9 @@ You rarely call a skill by name. At session start the hook points the agent at t
 Run `flow-setup`, or the same commands yourself from the repository root:
 
 ```sh
-node ~/.config/agent-workflow/package/dist/bin/workflow.js setup . > /tmp/workflow-setup.json
-node ~/.config/agent-workflow/package/dist/bin/workflow.js setup-apply . /tmp/workflow-setup.json
-node ~/.config/agent-workflow/package/dist/bin/workflow.js doctor --author claude
+node ~/.config/agent-workflow/package/bin/workflow.ts setup . > /tmp/workflow-setup.json
+node ~/.config/agent-workflow/package/bin/workflow.ts setup-apply . /tmp/workflow-setup.json
+node ~/.config/agent-workflow/package/bin/workflow.ts doctor --author claude
 ```
 
 Before applying, edit the proposal: set `gate` to the command that fully checks the project and pick the reviewers you can run. Commit the resulting `.agent-workflow.json`. Every setting is described in [configuration](configuration.md).
@@ -39,8 +39,8 @@ The approval covers that one operation on the current tree and expires after ten
 `flow-handoff` moves a task to another tool. The notes stay and the new author starts a fresh review cycle:
 
 ```sh
-node ~/.config/agent-workflow/package/dist/bin/workflow.js task-handoff docs/tasks/login.md --author codex
-node ~/.config/agent-workflow/package/dist/bin/workflow.js task-resume docs/tasks/login.md
+node ~/.config/agent-workflow/package/bin/workflow.ts task-handoff docs/tasks/login.md --author codex
+node ~/.config/agent-workflow/package/bin/workflow.ts task-resume docs/tasks/login.md
 ```
 
 ## Team through Herdr

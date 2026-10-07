@@ -1,4 +1,4 @@
-import type { FlowConfig, ReadCommand } from './types.js';
+import type { FlowConfig, ReadCommand } from './types.ts';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';

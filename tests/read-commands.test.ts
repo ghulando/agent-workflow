@@ -1,13 +1,13 @@
-import './environment.js';
+import './environment.ts';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { shellKind } from '../core/shell.js';
-import { handle, runGate } from '../core/runtime.js';
-import { sessionKey, withState } from '../core/state.js';
+import { shellKind } from '../core/shell.ts';
+import { handle, runGate } from '../core/runtime.ts';
+import { sessionKey, withState } from '../core/state.ts';
 
 const reads = [
   'ps -axo pid,ppid,etime,command',

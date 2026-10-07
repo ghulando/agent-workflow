@@ -14,9 +14,9 @@ npm run verify-install
 npm pack --dry-run
 ```
 
-Prettier owns TypeScript formatting; run `npm run format` before committing. `npm test` builds and runs `dist/tests/*.test.js` against real temporary Git repositories. Reviewer tests use fake provider executables, so they check routing and state, not model quality. `verify-install` installs the packed tarball and runs every packaged suite from it, then checks manifest entry points and documentation links.
+Prettier owns TypeScript formatting; run `npm run format` before committing. Node runs the TypeScript directly, so Claude Code, Codex and Pi install from a clone with nothing to build. `npm test` typechecks and runs `tests/*.test.ts` against real temporary Git repositories. Reviewer tests use fake provider executables, so they check routing and state, not model quality. `verify-install` installs the packed tarball and runs every packaged suite from it, then checks manifest entry points and documentation links.
 
-`node dist/scripts/verify-hosts.js` is an optional check against the Claude and Codex CLIs installed on your machine. Add `--pi-loader /path/to/pi/dist/core/extensions/loader.js` to include Pi. It sends no model prompts, changes no trust settings and skips hosts that are missing.
+`node scripts/verify-hosts.ts` is an optional check against the Claude and Codex CLIs installed on your machine. Add `--pi-loader /path/to/pi/dist/core/extensions/loader.js` to include Pi. It sends no model prompts, changes no trust settings and skips hosts that are missing.
 
 ## Before a release
 

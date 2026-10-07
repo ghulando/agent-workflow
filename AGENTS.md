@@ -8,11 +8,13 @@ Work on feature or fix branches. Preserve dirty work. Never commit, push or
 publish without explicit user approval. Do not enable hook trust automatically.
 
 Install development tools with npm ci --omit=peer. Source and tests are strict
-TypeScript in the existing directories; npm run build emits ignored dist/
-JavaScript. npm test builds first; npm pack builds through prepack and ships
-compiled code only. Keep .js relative imports and shared core/types.ts contracts.
-Run npm test, verify-install and npm pack before independent read-only review.
-Review changes against acceptance criteria and boundary/adversarial cases; fix
-findings before finalizing. Keep native manifests and installed copies consistent.
+TypeScript in the existing directories, and Node runs the .ts files directly:
+there is no build step and no dist/. Use only erasable syntax (no enums,
+namespaces or parameter properties). npm run typecheck runs tsc without emit;
+npm test typechecks first. Keep .ts relative imports and shared core/types.ts
+contracts. Run npm test, verify-install and npm pack before independent
+read-only review. Review changes against acceptance criteria and
+boundary/adversarial cases; fix findings before finalizing. Keep native
+manifests and installed copies consistent.
 
-Node >=22.16 and a POSIX shell are required. Pi supplies its peer modules.
+Node >=22.18 and a POSIX shell are required. Pi supplies its peer modules.

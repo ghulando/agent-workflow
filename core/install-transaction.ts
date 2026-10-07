@@ -1,4 +1,4 @@
-import type { InstallationPlan } from './types.js';
+import type { InstallationPlan } from './types.ts';
 import {
   cpSync,
   existsSync,
@@ -15,7 +15,7 @@ import {
   rmdirSync,
 } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
-import { packageDigest } from './package.js';
+import { packageDigest } from './package.ts';
 
 // Stage before replacing anything. Roll back reported IO failures, retaining backups
 // if rollback itself fails. This is not a cross-filesystem crash-atomic transaction.

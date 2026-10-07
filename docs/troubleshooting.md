@@ -4,11 +4,13 @@ Start with `doctor --author <author>` from the project root, using the runner pa
 
 ## No workflow context or guards
 
-Register the plugin with the commands `install-user` printed, restart the harness and approve hook trust. A working install shows "Agent workflow is active" in the startup context.
+Register the plugin with the commands in the README install section, restart the harness and approve hook trust. A working install shows "Agent workflow is active" in the startup context.
 
 Codex loads the hooks named in `.codex-plugin/plugin.json`. Do not add a root `plugin.json`: it shadows those hooks. References: [OpenAI plugin packaging](https://developers.openai.com/plugins/build/plugins), [Claude plugin reference](https://code.claude.com/docs/en/plugins-reference), [Pi packages](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/packages.md).
 
 "agent-workflow hook is missing" means the plugin was updated or removed while the session was open. Restart the harness.
+
+"agent-workflow hook could not run" on every tool call, with `ERR_UNKNOWN_FILE_EXTENSION` from `node`, means the harness found a Node older than 22.18, which cannot run TypeScript. Check `node --version` in the environment the harness starts from.
 
 "Worktree too large to verify within the hook time budget" means fingerprinting tracked and non-ignored files took over 40 seconds. Ignore large or generated files, or move them out of the repository. The hook denies here because past the 60-second harness timeout, Claude Code and Codex would run the tool without a decision.
 

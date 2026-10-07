@@ -150,8 +150,8 @@ Claude Code and Codex may still prompt for writes outside the project. `install-
 From the standalone package checkout, preview and then install into an application:
 
 ```sh
-node dist/bin/workflow.js install-plan /path/to/app
-node dist/bin/workflow.js install /path/to/app
+node bin/workflow.ts install-plan /path/to/app
+node bin/workflow.ts install /path/to/app
 ```
 
 The package is copied into `plugins/agent-workflow` when outside the application. New settings and instruction files are created with private permissions (0600); existing file modes are preserved. Settings are merged; existing plugins, hooks, permissions, and model choices are retained. Conflicting registrations fail before writes. Native registration/restart/trust is still required. Choose project-local or personal installation for each harness to avoid duplicate guards.
@@ -159,8 +159,8 @@ The package is copied into `plugins/agent-workflow` when outside the application
 Repair a reviewed vendored copy explicitly:
 
 ```sh
-node dist/bin/workflow.js install-plan /path/to/app --repair
-node dist/bin/workflow.js install /path/to/app --repair
+node bin/workflow.ts install-plan /path/to/app --repair
+node bin/workflow.ts install /path/to/app --repair
 ```
 
 Package and settings changes are staged first and rolled back on a reported IO failure; if rollback itself fails, the backups stay and the command reports an error. A crash mid-install can leave staging or backup directories behind, so inspect them before deleting.

@@ -1,6 +1,6 @@
 import type { TestContext } from 'node:test';
-import type { ProjectConfig, HarnessSettings, PackageMetadata } from '../core/types.js';
-import './environment.js';
+import type { ProjectConfig, HarnessSettings, PackageMetadata } from '../core/types.ts';
+import './environment.ts';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import {
@@ -20,11 +20,11 @@ import { syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import test from 'node:test';
-import { loadProject, git } from '../core/project.js';
-import { flowConfig, reviewerChoices } from '../core/flow-config.js';
-import { startTask, resumeTask, handoffTask, readTask, taskWorkspace } from '../core/tasks.js';
-import { proposeSetup, applySetup } from '../core/setup.js';
-import { installPersonal, personalInstallPlan } from '../core/personal-install.js';
+import { loadProject, git } from '../core/project.ts';
+import { flowConfig, reviewerChoices } from '../core/flow-config.ts';
+import { startTask, resumeTask, handoffTask, readTask, taskWorkspace } from '../core/tasks.ts';
+import { proposeSetup, applySetup } from '../core/setup.ts';
+import { installPersonal, personalInstallPlan } from '../core/personal-install.ts';
 import {
   parseVerdict,
   runReview as rawReview,
@@ -32,9 +32,9 @@ import {
   hasReview,
   reviewCommand,
   reviewKey,
-} from '../core/review.js';
-import { fingerprint, sessionKey, withState } from '../core/state.js';
-import { handle, runGate } from '../core/runtime.js';
+} from '../core/review.ts';
+import { fingerprint, sessionKey, withState } from '../core/state.ts';
+import { handle, runGate } from '../core/runtime.ts';
 
 function fixture(t: TestContext, workflow = {}) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-pack-')));
@@ -244,10 +244,7 @@ test('setup proposals keep personal defaults out of the repo and personal read c
   assert.equal((await bash('graphify query "who calls handle"')).decision, undefined);
   assert.equal((await bash('graphify query --write out "x"')).decision, 'deny');
   assert.equal((await bash('graphify build')).decision, 'deny');
-  const documentation = readFileSync(
-    new URL('../../docs/configuration.md', import.meta.url),
-    'utf8',
-  );
+  const documentation = readFileSync(new URL('../docs/configuration.md', import.meta.url), 'utf8');
   const graphifyExample = documentation
     .split('```json\n')
     .slice(1)
@@ -408,7 +405,7 @@ test('personal upgrades stage a replacement and preserve preferences; same versi
       '0.0.1',
     );
   }
-  assert.equal(existsSync(join(target, 'dist/core/shell.js')), true);
+  assert.equal(existsSync(join(target, 'core/shell.ts')), true);
   assert.equal(existsSync(join(target, 'obsolete.txt')), false);
   assert.equal(readFileSync(join(destination, 'personal.json'), 'utf8'), personal);
   assert.equal(personalInstallPlan(home, destination).copy, null);
@@ -915,8 +912,8 @@ test('review survives native pre/post hooks while lookalike commands invalidate 
     const task = start(root, author);
     const key = sessionKey(root, author, 'review-test');
     const reviewer = author === 'claude' ? 'codex' : 'claude';
-    const { pluginRoot, quote } = await import('../core/runtime.js');
-    const command = `node ${quote(pluginRoot + 'dist/bin/workflow.js')} review ${task.task} --author ${author} --reviewer ${reviewer} --round 1 --gate-session ${key}`;
+    const { pluginRoot, quote } = await import('../core/runtime.ts');
+    const command = `node ${quote(pluginRoot + 'bin/workflow.ts')} review ${task.task} --author ${author} --reviewer ${reviewer} --round 1 --gate-session ${key}`;
     const payload = {
       cwd: root,
       session_id: 'review-test',
@@ -964,7 +961,7 @@ test('review survives native pre/post hooks while lookalike commands invalidate 
         /full session gate/,
       );
     }
-    const { withState } = await import('../core/state.js');
+    const { withState } = await import('../core/state.ts');
     await handle(author, {
       ...payload,
       hook_event_name: 'PostToolUse',
@@ -991,8 +988,8 @@ test('additional rounds require an exact-task exception and retain preceding rep
   await runReview(root, task.task, { ...args, round: 2 });
   const extra = await runReview(root, task.task, { ...args, round: 3 });
   assert.equal(extra.authorization, 'Explicit test user authorization');
-  const { withState } = await import('../core/state.js');
-  const { reviewKey } = await import('../core/review.js');
+  const { withState } = await import('../core/state.ts');
+  const { reviewKey } = await import('../core/review.ts');
   const state = await withState(root, reviewKey(readTask(loadProject(root), task.task)), (s) => s);
   assert.equal(state.first!.round, 1);
   assert.equal(state.second!.round, 2);

@@ -1,11 +1,11 @@
-import type { PackageMetadata } from './types.js';
+import type { PackageMetadata } from './types.ts';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import { homedir } from 'node:os';
-import { authors, eligibleReviewers, personalRoot } from './flow-config.js';
-import { currentBranch, loadProject } from './project.js';
-import { packageStatus } from './package.js';
-import { pluginRoot } from './runtime.js';
+import { authors, eligibleReviewers, personalRoot } from './flow-config.ts';
+import { currentBranch, loadProject } from './project.ts';
+import { packageStatus } from './package.ts';
+import { pluginRoot } from './runtime.ts';
 
 export function doctor(cwd: string, author?: string) {
   if (author !== undefined && !authors.includes(author)) {
@@ -80,7 +80,7 @@ export function doctor(cwd: string, author?: string) {
   return {
     root,
     branch: currentBranch(root),
-    runner: resolve(pluginRoot, 'dist/bin/workflow.js'),
+    runner: resolve(pluginRoot, 'bin/workflow.ts'),
     gate: config.gate,
     requireReview: config.workflow.requireReview,
     reviewers,
