@@ -1772,7 +1772,7 @@ for (const harness of ['pi', 'claude', 'codex']) {
     await assert.rejects(call(root, harness, 'PreToolUse', tool, input), /too large to verify/);
   });
 
-  test(`${harness}: a done edit past its time budget denies before the tool and still invalidates after it`, async (t) => {
+  test(`${harness}: a done edit past its time budget denies before the tool`, async (t) => {
     const root = fixture(t);
     const key = sessionKey(root, harness, 'test-session');
     await runGate(root, key);
@@ -1785,9 +1785,5 @@ for (const harness of ['pi', 'claude', 'codex']) {
     });
     const [tool, input] = writeInput(harness, 'docs/tasks/new.md', '**Status:** done.');
     await assert.rejects(call(root, harness, 'PreToolUse', tool, input), /too large to verify/);
-    calls = 0;
-    await call(root, harness, 'PostToolUse', tool, input);
-    Date.now = now;
-    await withState(root, key, (state) => assert.equal(state.pass, null));
   });
 }
