@@ -67,7 +67,7 @@ Start a new session to check the install. A working install shows "Agent workflo
 
 ### Enable it in a project
 
-Run `setup` from the project's repository root, as described in the [flow guide](docs/flow.md). [Usage](docs/usage.md) explains solo runs, Herdr team runs and what the engine enforces.
+Run `flow-setup` in the project. The [flow diagram](docs/flow.md) shows the whole process. [Usage](docs/usage.md) explains solo runs, Herdr team runs and what the engine enforces.
 
 ## Update
 

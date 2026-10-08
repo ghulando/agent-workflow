@@ -13,7 +13,7 @@ Use one agent for most work: docs, one-file fixes, small features.
 5. The agent runs one recorded review. A pass completes the task. A blocked review gets one fix pass and one re-review; anything still open comes to you.
 6. The agent shows the diff and asks before committing. Merge and push each need a separate yes.
 
-Skills you call yourself: `flow-setup` once per new repository, `flow-debug` for a bug or slowdown, `flow-handoff` to move a task to another tool, and `clean-history` to prune session history. The `workflow` skill loads `flow-spec`, `flow-understand`, `flow-design`, `flow-implement`, `flow-test`, `flow-verify` and `flow-review` when a step needs them. Steps are described in the [flow guide](flow.md).
+Skills you call yourself: `flow-setup` once per new repository, `flow-debug` for a bug or slowdown, `flow-handoff` to move a task to another tool, and `clean-history` to prune session history. The `workflow` skill loads `flow-spec`, `flow-understand`, `flow-design`, `flow-implement`, `flow-test`, `flow-verify` and `flow-review` when a step needs them. The [flow diagram](flow.md) shows the steps.
 
 ## Team
 

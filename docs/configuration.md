@@ -2,28 +2,28 @@
 
 ## Project and personal settings
 
-The project file is `.agent-workflow.json` at the Git repository root. A configuration in a subdirectory of a Git repository is ignored and protected; the enclosing repository's file applies. Personal preferences live in `~/.config/agent-workflow/personal.json`; `AGENT_WORKFLOW_HOME` can select another directory. Repository workflow settings override personal settings. Reviewer entries merge by provider; read-command lists are additive.
+Project settings live in `.agent-workflow.json` at the Git repository root. A file in a subdirectory is ignored, and the guard protects it from edits; the root file applies. Personal settings live in `~/.config/agent-workflow/personal.json`, and `AGENT_WORKFLOW_HOME` points to another directory. Project settings win over personal ones, except that reviewers merge by provider and read-command lists add up.
 
-Start from [examples/project.json](../examples/project.json), or use `setup` to inspect your project. The example gate is for a Node project: replace it for other stacks. Neither installation nor setup runs detected checks or installs application toolchains.
+Start from [examples/project.json](../examples/project.json), or run `setup` to get a proposal for your project. The example gate is for a Node project, so replace it for other stacks. Neither install nor setup runs the checks it detects or installs a toolchain.
 
-Without configuration, hooks protect `main` and `master` and discover `.agents/skills`. There is no default gate or reviewer, so managed completion is unavailable until configured.
+With no configuration, the hooks protect `main` and `master` and find skills in `.agents/skills`. There is no default gate or reviewer, so no task can be marked done until you set them.
 
 | Setting | Purpose |
 | --- | --- |
-| `version` | Configuration schema version; use `1`. |
-| `protectedBranches` | Branches where agent implementation is denied. |
-| `taskFiles` | Patterns identifying managed task Markdown. |
-| `doneMarker` | Completion text; default `**Status:** done.`. Bare custom text is rendered after `**Status:**`. |
-| `gate` | Executable/argument array for all project checks. |
-| `review` | Optional project review wrapper; see [Review wrapper](#review-wrapper). |
-| `skillRoots` | Directories containing `<name>/SKILL.md`. |
-| `requiredSkills` | Skill names whose complete instructions are supplied at startup. |
-| `readCommands` | Command prefixes or typed option rules trusted as reads on protected branches and in plan mode. |
-| `readOnlyTools` | Host tool names or `*` patterns that do not modify project files. MCP tools (`mcp__*`) are left to the host's own permissions. |
-| `extensions` | Repository JavaScript modules exporting `pre` and/or `post`. |
-| `workflow` | Task, branch, review, and shell-approval preferences. |
+| `version` | Schema version. Use `1`. |
+| `protectedBranches` | Branches where the agent may only read. |
+| `taskFiles` | Patterns that match task Markdown files. |
+| `doneMarker` | Completion text. Default `**Status:** done.`; bare text is placed after `**Status:**`. |
+| `gate` | Executable and argument array that runs every project check. |
+| `review` | Optional review wrapper, see [Review wrapper](#review-wrapper). |
+| `skillRoots` | Directories holding `<name>/SKILL.md`. |
+| `requiredSkills` | Skills whose full text is loaded at session start. |
+| `readCommands` | Commands trusted as reads on protected branches and in plan mode. |
+| `readOnlyTools` | Host tool names or `*` patterns that never change project files. MCP tools (`mcp__*`) stay under the host's own permissions. |
+| `extensions` | Repository JavaScript modules exporting `pre`, `post` or both. |
+| `workflow` | Task, branch and review preferences. |
 
-Unknown keys, invalid inputs, and unreadable state fail closed. Patterns support `*` within a segment and `**` across segments. File-tool edits to Git metadata, workflow configuration, adapter configuration, and configured local gate/review/extension entrypoints ask first.
+An unknown key, an invalid value or unreadable state makes the guard deny rather than guess. In patterns, `*` matches within one path segment and `**` across segments. File-tool edits to Git metadata, workflow and harness configuration, and the configured gate, review and extension files ask you first.
 
 ## Workflow settings
 
@@ -33,12 +33,12 @@ Unknown keys, invalid inputs, and unreadable state fail closed. Patterns support
 | `baseBranch` | `main` |
 | `featurePrefix`, `fixPrefix` | `feature/`, `fix/` |
 | `requireReview` | `true` |
-| `reviewers` | `{}`; choose providers explicitly |
-| `reviewTimeout` | `900` seconds; range 1–3600 |
+| `reviewers` | `{}`, so you must choose providers |
+| `reviewTimeout` | `900` seconds, from 1 to 3600 |
 | `reviewContext`, `reviewExclude` | Empty pattern lists |
-| `reviewExceptions` | Empty object; see [Review exceptions](#review-exceptions) |
+| `reviewExceptions` | Empty, see [Review exceptions](#review-exceptions) |
 
-Configure only reviewers you can run; each one is a CLI subprocess on your machine. Empty Claude and Codex objects use the harness's default model. Ollama needs an explicit model.
+List only reviewers you can run, because each one starts a CLI on your machine. An empty object for Claude or Codex uses that harness's default model. Ollama needs a model name.
 
 ```json
 {
@@ -52,41 +52,43 @@ Configure only reviewers you can run; each one is a CLI subprocess on your machi
 }
 ```
 
+The reviewer must come from a different harness than the author:
+
 | Task author | Eligible reviewers |
 | --- | --- |
 | Pi | Claude or Codex |
 | Codex | Claude or Ollama |
 | Claude | Codex or Ollama |
 
-`doctor --author codex` checks this before you start. Two harnesses can run the same model family, so a different harness does not guarantee a different model. `requireReview: false` turns off the review requirement; the gate is still required.
+Run `doctor --author codex` to check this before you start. Two harnesses can run the same model family, so a different harness does not guarantee a different model. `requireReview: false` drops the review requirement, but the gate still has to pass.
+
+With `transport: "pi"`, Ollama runs through Pi with tools, extensions, skills and context discovery turned off. `reviewContext` adds unchanged files the reviewer needs to understand the change. `reviewExclude` keeps generated files out of what the reviewer sees but leaves them in the tree fingerprint, so the reviewer never approves a file it did not read.
 
 ### Review wrapper
 
-`review` is a one-element array naming an executable inside the repository, for example `["scripts/review.sh"]`. The guard recognizes it only when invoked from the project root exactly as `REVIEW_GATE_SESSION=<session key> scripts/review.sh <task-file> <author> <reviewer> [round]`, with `claude`, `codex` or `ollama` as reviewer and a round from 1 to 10. The wrapper must call the runner's `review` command itself; the recognition lets it run on protected branches. Edits to the file ask first.
+`review` is a one-element array naming an executable inside the repository, such as `["scripts/review.sh"]`. The guard recognises it only when run from the project root exactly as `REVIEW_GATE_SESSION=<session key> scripts/review.sh <task-file> <author> <reviewer> [round]`, where the reviewer is `claude`, `codex` or `ollama` and the round is 1 to 10. The wrapper has to call the runner's `review` command itself. Because the guard recognises it, the wrapper can run on protected branches, and edits to it ask first.
 
 ### Review exceptions
 
-Each task gets two recorded rounds. To allow more for one task, add an entry keyed by its repository-relative task file:
+A task gets two recorded review rounds. To allow more for one task, add an entry keyed by its repository-relative task file:
 
 ```json
 {"workflow": {"reviewExceptions": {"docs/tasks/login.md": {"maxRound": 4, "reason": "Reviewer timed out twice; approved by the maintainer"}}}}
 ```
 
-`maxRound` must be 3 to 10 and `reason` must be nonempty. The reason is recorded with every extra round.
-
-Ollama may use `transport: "pi"` to run through Pi with tools, extensions, skills and context discovery turned off. `reviewContext` adds unchanged files the reviewer needs to understand a change. `reviewExclude` leaves generated files out of the review snapshot but keeps them in the fingerprint; the reviewer cannot accept what it never saw.
+`maxRound` is 3 to 10 and `reason` cannot be empty. The reason is stored with every extra round.
 
 ## Read commands
 
-On protected branches and in plan or review mode only reads run; anything else is denied, because a script can write files even when its name sounds like a reader. On feature branches the guard does not classify commands at all.
+On a protected branch, and in plan or review mode, the guard runs only reads and denies everything else, because a script can write files even when its name sounds harmless. On a feature branch it does not classify commands.
 
-Trust a fixed prefix with positional operands:
+To trust a fixed prefix followed by positional arguments:
 
 ```json
 {"readCommands": [["inspect", "list"]]}
 ```
 
-Extra flags after that prefix are rejected. For variable options, describe exactly what the executable accepts:
+Any flag after that prefix is rejected. For a command with options, describe exactly what it accepts:
 
 ```json
 {
@@ -98,9 +100,9 @@ Extra flags after that prefix are rejected. For variable options, describe exact
 }
 ```
 
-Typed values are separate arguments. Unknown options, abbreviations, combined short flags, and `--name=value` are rejected. Configured entries reject `--` unless it is explicitly part of the reviewed prefix; programs may forward the following arguments. Trust only executables whose option semantics you understand. Personal rules apply in every repository.
+Option values must be separate arguments. The guard rejects unknown options, abbreviations, combined short flags and `--name=value`. It also rejects `--` unless the prefix includes it, because programs may forward whatever follows. Trust only executables whose options you understand. Personal entries apply in every repository.
 
-For an existing graphify graph, add these typed entries to your personal `readCommands` in `~/.config/agent-workflow/personal.json`:
+To query an existing graphify graph, add these entries to the personal `readCommands` in `~/.config/agent-workflow/personal.json`:
 
 ```json
 {
@@ -129,42 +131,42 @@ For an existing graphify graph, add these typed entries to your personal `readCo
 }
 ```
 
-These entries authorize reads only; the workflow never builds, updates or installs graphify. Add `graphify-out/` to the consuming repository's `.gitignore`.
+They allow reads only. The workflow never builds, updates or installs graphify. Add `graphify-out/` to the project's `.gitignore`.
 
-The built-in classifier also accepts pipes between readers and discard redirections such as `2>/dev/null`. Variables, `$(...)`, backticks, output files and loops make a command unclassifiable. Globs need a literal directory prefix. `git -C` is a read only when it names the project root by absolute path. A `cd` before a read must stay inside the project, and Git reads from inside a nested repository are not reads, because another repository can supply executable Git configuration. `--help` and `--version` are reads only for the built-in readers and `git`, `rg`, `grep`, `find`, `sed`, `jq`, `node`, `npm` and `herdr`.
+The built-in classifier also accepts pipes between readers and discard redirects such as `2>/dev/null`. Variables, `$(...)`, backticks, output files and loops make a command unclassifiable, so the guard denies it wherever only reads may run. A glob needs a literal directory prefix. `git -C` counts as a read only when it names the project root by absolute path. A `cd` before a read must stay inside the project. Git reads inside a nested repository are not reads, because that repository can supply executable Git configuration. `--help` and `--version` count as reads only for the built-in readers and for `git`, `rg`, `grep`, `find`, `sed`, `jq`, `node`, `npm` and `herdr`.
 
-Older configurations may still contain `protectedPaths` or `workflow.shellApproval`. Both are accepted and ignored. Shell commands on feature branches never ask, except commit, merge, push and commands containing `publish`, `push`, `deploy`, `release` or `upload`. The check reads command text, so it catches ordinary spellings, including `/usr/bin/git`, Git global options, chains, line continuations and `sh -c` scripts, but not every way a shell can hide a command, such as one built in a variable or run from a script file. Shell commands can still write protected files. The hooks are workflow guardrails, not an OS security boundary, so use the harness sandbox when you need enforcement.
+Older files may still contain `protectedPaths` or `workflow.shellApproval`. The guard accepts and ignores both. On a feature branch, shell commands never ask except commit, merge, push and anything containing `publish`, `push`, `deploy`, `release` or `upload`. The guard reads the command text. It catches ordinary spellings, including `/usr/bin/git`, Git global options, chains, line continuations and `sh -c` scripts. It misses a command built in a variable or run from a script file, and shell commands can still write protected files. The hooks are guardrails for the workflow and give no OS-level protection; use the harness sandbox when you need that.
 
 ## Task workspace
 
-Each task gets a private folder for team files outside the repository: `~/.agent-workflow/<repository folder name>/<task id>/`, or under `AGENT_WORKFLOW_WORKSPACE` when set. `task-start`, `task-resume` and `task-handoff` create it with mode 0700 and print it; an existing task folder that is a symlink or readable by others is refused. A `.repo` file records the owning repository; a second repository with the same folder name gets an error instead of sharing it.
+Each task gets a private folder outside the repository for team files: `~/.agent-workflow/<repository folder name>/<task id>/`, or the same path under `AGENT_WORKFLOW_WORKSPACE` when it is set. `task-start`, `task-resume` and `task-handoff` create it with mode 0700 and print its path. They refuse an existing folder that is a symlink or that other users can read. A `.repo` file records which repository owns the folder, so a second repository with the same folder name gets an error.
 
-Briefs, reports and findings go there, never into a harness's own scratch directory. Name every file `<writer>-<topic>.md`, where the writer is `claude`, `codex` or `pi`, for example `claude-brief-codex.md` or `pi-findings-1.md`. The guard denies a file-tool write or Codex patch to a workspace file whose name starts with another writer's prefix, and rejects a patch that mixes workspace and repository files. Anyone may read every file. Shell commands that write there are not ownership-checked. Recorded reviews add `<reviewer>-review-round<N>.md`. The task note itself stays in the repository.
+Briefs, reports and findings go there, never in a harness's own scratch directory. Name each file `<writer>-<topic>.md`, where the writer is `claude`, `codex` or `pi`, for example `claude-brief-codex.md` or `pi-findings-1.md`. The guard denies a file-tool write or Codex patch to a file carrying another writer's prefix, and rejects a patch that touches both the workspace and the repository. Every agent can read every file. Shell writes to the workspace are not checked. Recorded reviews add `<reviewer>-review-round<N>.md`. The task note itself stays in the repository.
 
-Claude Code and Codex may still prompt for writes outside the project. `install-user` prints the settings to add yourself: the workspace path in `permissions.additionalDirectories` for Claude, and in `writable_roots` under `[sandbox_workspace_write]` for Codex.
+Claude Code and Codex may still ask before writing outside the project. `install-user` prints the settings to add: the workspace path in `permissions.additionalDirectories` for Claude, and in `writable_roots` under `[sandbox_workspace_write]` for Codex.
 
 ## Project-local installation
 
-From the standalone package checkout, preview and then install into an application:
+From the package checkout, preview and then install into an application:
 
 ```sh
 node bin/workflow.ts install-plan /path/to/app
 node bin/workflow.ts install /path/to/app
 ```
 
-The package is copied into `plugins/agent-workflow` when outside the application. New settings and instruction files are created with private permissions (0600); existing file modes are preserved. Settings are merged; existing plugins, hooks, permissions, and model choices are retained. Conflicting registrations fail before writes. Native registration/restart/trust is still required. Choose project-local or personal installation for each harness to avoid duplicate guards.
+When the package sits outside the application, `install` copies it into `plugins/agent-workflow`. It creates new settings and instruction files with mode 0600 and keeps the mode of existing ones. It merges settings, keeping existing plugins, hooks, permissions and model choices, and stops before writing anything if a registration conflicts. You still register the plugin, restart and approve hook trust in each harness. Pick either project-local or personal install per harness, or the guard runs twice.
 
-Repair a reviewed vendored copy explicitly:
+To repair a vendored copy you have reviewed:
 
 ```sh
 node bin/workflow.ts install-plan /path/to/app --repair
 node bin/workflow.ts install /path/to/app --repair
 ```
 
-Package and settings changes are staged first and rolled back on a reported IO failure; if rollback itself fails, the backups stay and the command reports an error. A crash mid-install can leave staging or backup directories behind, so inspect them before deleting.
+The installer stages package and settings changes and rolls them back when an IO error is reported. If the rollback fails, the backups stay and the command reports an error. A crash mid-install can leave staging or backup directories behind, so inspect them before deleting.
 
 ## Extensions
 
-An extension may export `pre({root, config, action})`, returning a denial reason, and `post({root, config, action})`, returning feedback. Either can be async. File actions include `{path, before, after}` previews; deletion has `after: null`. Shell actions include command and working directory.
+An extension may export `pre({root, config, action})`, which returns a reason to deny, and `post({root, config, action})`, which returns feedback. Either may be async. File actions carry `{path, before, after}` previews, with `after: null` for a deletion. Shell actions carry the command and working directory.
 
-Extensions are trusted project code. Post hooks cannot undo a tool's side effects. Place language-specific formatters and structural checks here rather than in the shared engine.
+Extensions are trusted project code, and a `post` hook cannot undo what a tool already did. Language-specific formatters and structural checks belong in extensions, not in the shared engine.
