@@ -109,6 +109,14 @@ codex plugin marketplace remove agent-workflow-local
 
 A project that enabled the plugin in its own `.claude/settings.json` needs `claude plugin uninstall agent-workflow@agent-workflow-local --scope project`, run in that project. Codex keeps hook trust per plugin name, so it asks for trust again.
 
+## Uninstall
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/ghulando/agent-workflow/main/scripts/uninstall.sh | sh
+```
+
+The script runs on macOS and Linux. It removes the plugin from Claude Code, Codex and Pi under both marketplace names, together with its caches, the local-clone package and the workflow state in the temp directory. It also removes Codex's hook trust entries. Settings files are backed up as `<file>.agent-workflow.bak` before they are edited. Your personal config and the task workspace stay; add `--purge` (`... | sh -s -- --purge`) to remove them as well, along with the workspace entries in `additionalDirectories` and `writable_roots`. The script lists project-scope Claude installs and leaves them alone. Restart every session afterwards.
+
 ## Install from a local clone
 
 Use this to run your own changes. It copies the package to `~/.config/agent-workflow/package` and installs every harness from there. Do not combine it with the GitHub install: both use the marketplace name `ghulando`, so remove the GitHub install first.

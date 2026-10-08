@@ -18,6 +18,7 @@
     "bin",
     "core",
     "scripts/install.sh",
+    "scripts/uninstall.sh",
     "scripts/verify-hosts.ts",
     "scripts/verify-install.ts",
     "tests",
