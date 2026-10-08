@@ -98,6 +98,52 @@ export function commands(text: string) {
   return parsed && !parsed.glob && !parsed.comment ? parsed.segments : null;
 }
 
+const SHIPPING_GIT = new Set(['commit', 'merge', 'push']);
+const SHIPPING_WORDS = new Set(['publish', 'push', 'deploy', 'release', 'upload']);
+const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'eval']);
+// Git global options whose value is a separate word.
+const GIT_VALUE_OPTIONS = new Set([
+  '-C',
+  '-c',
+  '--git-dir',
+  '--work-tree',
+  '--namespace',
+  '--config-env',
+]);
+
+function gitVerb(segment: string[]) {
+  let i = segment.findIndex((word) => word === 'git' || word.endsWith('/git'));
+  if (i < 0) return undefined;
+  for (i++; segment[i]?.startsWith('-'); i++) {
+    if (GIT_VALUE_OPTIONS.has(segment[i]!)) i++;
+  }
+  return segment[i];
+}
+
+// Commit, merge, push and publish wait for the user's yes in every harness.
+// This catches ordinary spellings, not every way a shell can hide a command:
+// the hooks are guardrails, not a security boundary. Text the parser cannot
+// read is matched on its plain words, after dropping comments, line
+// continuations and the quotes and backslashes that could split a word like
+// g\it. Script text handed to a shell, as in sh -c 'git push', is checked too.
+export function isShipping(text: string): boolean {
+  const segments =
+    commands(text) ??
+    text
+      .replace(/(^|\s)#[^\n]*/g, '$1')
+      .replace(/\\\n/g, ' ')
+      .replace(/[\\'"]/g, '')
+      .split(/[;&|()\n`]+/)
+      .map((part) => part.split(/[\s$<>]+/));
+  return segments.some(
+    (s) =>
+      SHIPPING_GIT.has(gitVerb(s)!) ||
+      s.some((word) => SHIPPING_WORDS.has(word)) ||
+      (s.some((word) => SHELLS.has(word.split('/').pop()!)) &&
+        s.some((word) => /\s/.test(word) && isShipping(word))),
+  );
+}
+
 const READERS = new Set([
   'cat',
   'head',

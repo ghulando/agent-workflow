@@ -135,7 +135,7 @@ for (const harness of ['pi', 'claude', 'codex']) {
       await handle(harness, { ...payload, hook_event_name: 'PostToolUse' });
       assert.ok(await withState(root, key, (state) => state.pass), name);
     }
-    // Polling a running gate writes no input; typed input could start another command.
+    // Polling a running gate writes no input.
     const poll = {
       cwd: root,
       session_id: 'reads',
@@ -144,8 +144,6 @@ for (const harness of ['pi', 'claude', 'codex']) {
     };
     await handle(harness, { ...poll, tool_input: { session_id: 7, chars: '' } });
     assert.ok(await withState(root, key, (state) => state.pass), 'empty write_stdin');
-    await handle(harness, { ...poll, tool_input: { session_id: 7, chars: 'touch x\n' } });
-    assert.equal(await withState(root, key, (state) => state.pass), null);
     assert.equal(
       (
         await handle(harness, {

@@ -16,19 +16,17 @@ Codex loads the hooks named in `.codex-plugin/plugin.json`. Do not add a root `p
 
 Register the package either per user or per project in each harness, not both. Installation does not remove old guards; remove superseded ones yourself.
 
-## A read command asks for approval
+## A command is denied on main or in plan mode
 
-Use literal paths, known read options and globs with a directory prefix. `node -e`, Python snippets and unknown wrappers count as code execution even when the snippet only reads. For your own read-only tools, add a narrow `readCommands` rule ([configuration](configuration.md#read-commands)).
-
-On feature branches, `shellApproval: "native"` hands shell permission to Claude Code or Codex. It never allows changes in plan mode or on protected branches.
+Protected branches and plan mode allow only reads. Start a feature or fix branch, or exit plan mode. For a read that is still denied, use literal paths, known read options and globs with a directory prefix. `node -e`, Python snippets and unknown wrappers count as code execution even when the snippet only reads. For your own read-only tools, add a narrow `readCommands` rule ([configuration](configuration.md#read-commands)).
 
 ## Approval does not take
 
-Pi shows a dialog, Claude Code uses its native approval and Codex prints a request id to approve with `approve workflow <request-id>`. The retry must be the same operation in the same session on the same tree within ten minutes; anything else needs a new request.
+Only commit, merge, push, publish and edits to protected workflow files ask. Pi shows a dialog, Claude Code uses its native approval and Codex prints a request id to approve with `approve workflow <request-id>`. The retry must be the same operation in the same session on the same tree within ten minutes; anything else needs a new request.
 
 ## The gate passed but completion is blocked
 
-Run the exact gate command from the session context, with no file changes or unclassified tools running alongside it. The runner reports whether the checks failed, the tree changed, or another change overlapped the run. Finish task notes before the final gate, because editing the task file afterwards invalidates the receipt. With review required, a passing recorded round 1 on the final tree is enough for the status-only edit that marks the task done. After a blocked review, fix once, rerun the gate and run one re-review. Remaining issues go to the user; tree changes invalidate the receipts.
+Run the exact gate command from the session context, with no file changes running alongside it. The runner reports whether the checks failed or the tree changed during the run. Finish task notes before the final gate, because editing the task file afterwards invalidates the receipt. With review required, a passing recorded round 1 on the final tree is enough for the status-only edit that marks the task done. After a blocked review, fix once, rerun the gate and run one re-review. Remaining issues go to the user; tree changes invalidate the receipts.
 
 Gate and review commands must come from the same package build as the running hook. Matching version numbers are not enough.
 

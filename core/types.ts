@@ -63,7 +63,6 @@ export interface FlowConfig {
   reviewExclude: string[];
   reviewContext: string[];
   reviewExceptions: Record<string, ReviewException>;
-  shellApproval: 'workflow' | 'native';
 }
 
 export interface TypedReadCommand {
@@ -77,7 +76,6 @@ export type ReadCommand = string[] | TypedReadCommand;
 export interface ProjectConfig {
   version?: number;
   protectedBranches: string[];
-  protectedPaths: string[];
   taskFiles: string[];
   doneMarker: string;
   gate: string[] | null;
@@ -147,7 +145,6 @@ export interface HookResult {
   decision?: 'deny' | 'ask';
   reason?: string;
   request?: string;
-  session?: boolean;
   context?: string;
 }
 
@@ -218,9 +215,8 @@ export interface Receipt {
 export interface WorkflowState {
   revision: number;
   pass: Receipt | null;
-  pending: { id: string; tree: string; at: number; session?: string } | null;
+  pending: { id: string; tree: string; at: number } | null;
   approved: string | null;
-  sessionAllowed?: string[];
   gate: string | null;
   first?: ReviewRecord;
   second?: ReviewRecord;

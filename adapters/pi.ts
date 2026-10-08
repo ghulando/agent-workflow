@@ -75,15 +75,14 @@ export default function workflow(pi: ExtensionAPI) {
       let result = await handle('pi', input);
       if (result.decision === 'ask' && ctx.hasUI) {
         const once = 'Yes, once';
-        const session = 'Yes, for this session (this exact operation)';
         const choice = await ctx.ui.select(
           `Approve workflow operation?\n${result.reason}\n\n${event.toolName}\n${JSON.stringify(event.input, null, 2)}`,
-          [once, ...(result.session ? [session] : []), 'No'],
+          [once, 'No'],
         );
-        if (choice === once || choice === session) {
+        if (choice === once) {
           await handle('pi', {
             ...payload(ctx, {}, 'UserPromptSubmit'),
-            prompt: `approve workflow ${result.request}${choice === session ? ' for this session' : ''}`,
+            prompt: `approve workflow ${result.request}`,
           });
           result = await handle('pi', input);
         }

@@ -34,9 +34,9 @@ The engine is the hooks, the shell guard, the gate and the review runner. It enf
 
 Hooks run at session start, on each prompt, and before and after each tool call. The session-start hook injects the session key, the gate command and the path to the `workflow` skill.
 
-The guard blocks work on protected branches and asks before edits to protected paths. A shell command runs freely only when the guard can classify it as a read: built-in readers, or entries in `readCommands`. Anything else needs approval, either `approve workflow <request-id>` sent as a chat message, or the harness's own permission dialog when `shellApproval` is `native`.
+The guard keeps a small set of rules. On a protected branch (`main` and `master` by default) it allows only reads: built-in readers and entries in `readCommands`. Plan mode is read-only in the same way. Commit, merge, push and publish commands ask in every harness, as do edits to Git metadata, harness settings (`.claude`, `.codex`, `.pi`), `.agent-workflow.json` and the gate, review and extension scripts. Everything else on a feature or fix branch runs under the harness's own permissions. Claude Code shows its own dialog for an ask; Codex and Pi print `approve workflow <request-id>`, which you send as a chat message, and Pi also shows a dialog.
 
-The gate is the command in `.agent-workflow.json`. Run it exactly as the session context prints it. A pass records a receipt for that exact tree. The receipt is lost if the tree changes, or if that session runs a command the guard cannot classify.
+The gate is the command in `.agent-workflow.json`. Run it exactly as the session context prints it. A pass records a receipt for that exact tree. The receipt is lost when the tree changes.
 
 The review runner sends the task and diff to a reviewer from another harness, with no tools. A passing review records a completion receipt for the tree. Each task allows two rounds unless `reviewExceptions` raises the limit for that task.
 

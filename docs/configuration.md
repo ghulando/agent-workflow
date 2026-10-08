@@ -12,19 +12,18 @@ Without configuration, hooks protect `main` and `master` and discover `.agents/s
 | --- | --- |
 | `version` | Configuration schema version; use `1`. |
 | `protectedBranches` | Branches where agent implementation is denied. |
-| `protectedPaths` | Repository-relative patterns requiring edit approval. |
 | `taskFiles` | Patterns identifying managed task Markdown. |
 | `doneMarker` | Completion text; default `**Status:** done.`. Bare custom text is rendered after `**Status:**`. |
 | `gate` | Executable/argument array for all project checks. |
 | `review` | Optional project review wrapper; see [Review wrapper](#review-wrapper). |
 | `skillRoots` | Directories containing `<name>/SKILL.md`. |
 | `requiredSkills` | Skill names whose complete instructions are supplied at startup. |
-| `readCommands` | Explicitly trusted command prefixes or typed option rules. |
-| `readOnlyTools` | Trusted host tool names or `*` patterns that do not modify project files. MCP tools (`mcp__*`) are left to the host's own permissions. |
+| `readCommands` | Command prefixes or typed option rules trusted as reads on protected branches and in plan mode. |
+| `readOnlyTools` | Host tool names or `*` patterns that do not modify project files. MCP tools (`mcp__*`) are left to the host's own permissions. |
 | `extensions` | Repository JavaScript modules exporting `pre` and/or `post`. |
 | `workflow` | Task, branch, review, and shell-approval preferences. |
 
-Unknown keys, invalid inputs, and unreadable state fail closed. Patterns support `*` within a segment and `**` across segments. Git metadata, workflow configuration, adapter configuration, and configured local gate/review/extension entrypoints are protected automatically. Add indirect check dependencies to `protectedPaths`.
+Unknown keys, invalid inputs, and unreadable state fail closed. Patterns support `*` within a segment and `**` across segments. File-tool edits to Git metadata, workflow configuration, adapter configuration, and configured local gate/review/extension entrypoints ask first.
 
 ## Workflow settings
 
@@ -38,7 +37,6 @@ Unknown keys, invalid inputs, and unreadable state fail closed. Patterns support
 | `reviewTimeout` | `900` seconds; range 1–3600 |
 | `reviewContext`, `reviewExclude` | Empty pattern lists |
 | `reviewExceptions` | Empty object; see [Review exceptions](#review-exceptions) |
-| `shellApproval` | `workflow` |
 
 Configure only reviewers you can run; each one is a CLI subprocess on your machine. Empty Claude and Codex objects use the harness's default model. Ollama needs an explicit model.
 
@@ -64,7 +62,7 @@ Configure only reviewers you can run; each one is a CLI subprocess on your machi
 
 ### Review wrapper
 
-`review` is a one-element array naming an executable inside the repository, for example `["scripts/review.sh"]`. The guard recognizes it only when invoked from the project root exactly as `REVIEW_GATE_SESSION=<session key> scripts/review.sh <task-file> <author> <reviewer> [round]`, with `claude`, `codex` or `ollama` as reviewer and a round from 1 to 10. The wrapper must call the runner's `review` command itself; the recognition only keeps receipts valid while it runs. The file is protected automatically.
+`review` is a one-element array naming an executable inside the repository, for example `["scripts/review.sh"]`. The guard recognizes it only when invoked from the project root exactly as `REVIEW_GATE_SESSION=<session key> scripts/review.sh <task-file> <author> <reviewer> [round]`, with `claude`, `codex` or `ollama` as reviewer and a round from 1 to 10. The wrapper must call the runner's `review` command itself; the recognition lets it run on protected branches. Edits to the file ask first.
 
 ### Review exceptions
 
@@ -80,7 +78,7 @@ Ollama may use `transport: "pi"` to run through Pi with tools, extensions, skill
 
 ## Read commands
 
-Known readers run on protected branches and in plan or review mode. Any other command needs approval, because a script can write files even when its name sounds like a reader.
+On protected branches and in plan or review mode only reads run; anything else is denied, because a script can write files even when its name sounds like a reader. On feature branches the guard does not classify commands at all.
 
 Trust a fixed prefix with positional operands:
 
@@ -133,9 +131,9 @@ For an existing graphify graph, add these typed entries to your personal `readCo
 
 These entries authorize reads only; the workflow never builds, updates or installs graphify. Add `graphify-out/` to the consuming repository's `.gitignore`.
 
-The built-in classifier also accepts pipes between readers and discard redirections such as `2>/dev/null`. Variables, `$(...)`, backticks, output files and loops make a command unclassifiable. Globs need a literal directory prefix. `git -C` is a read only when it names the project root by absolute path. A `cd` before a read must stay inside the project, and Git reads from inside a nested repository need approval, because another repository can supply executable Git configuration. `--help` and `--version` are reads only for the built-in readers and `git`, `rg`, `grep`, `find`, `sed`, `jq`, `node`, `npm` and `herdr`.
+The built-in classifier also accepts pipes between readers and discard redirections such as `2>/dev/null`. Variables, `$(...)`, backticks, output files and loops make a command unclassifiable. Globs need a literal directory prefix. `git -C` is a read only when it names the project root by absolute path. A `cd` before a read must stay inside the project, and Git reads from inside a nested repository are not reads, because another repository can supply executable Git configuration. `--help` and `--version` are reads only for the built-in readers and `git`, `rg`, `grep`, `find`, `sed`, `jq`, `node`, `npm` and `herdr`.
 
-`shellApproval: "native"` hands approval of unclassified shell commands on feature branches to Claude Code or Codex permissions. Pi has no native permission layer and keeps workflow approval; its dialog can approve one exact non-file operation for the rest of the session. Approved shell commands can still write protected files. The hooks are workflow guardrails, not an OS security boundary, so use the harness sandbox when you need enforcement.
+Older configurations may still contain `protectedPaths` or `workflow.shellApproval`. Both are accepted and ignored. Shell commands on feature branches never ask, except commit, merge, push and commands containing `publish`, `push`, `deploy`, `release` or `upload`. The check reads command text, so it catches ordinary spellings, including `/usr/bin/git`, Git global options, chains, line continuations and `sh -c` scripts, but not every way a shell can hide a command, such as one built in a variable or run from a script file. Shell commands can still write protected files. The hooks are workflow guardrails, not an OS security boundary, so use the harness sandbox when you need enforcement.
 
 ## Task workspace
 

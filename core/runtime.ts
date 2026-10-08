@@ -6,20 +6,28 @@ import type {
   HookResult,
   ParsedCommand,
   Extension,
-  PackageMetadata,
+  ToolInput,
 } from './types.ts';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { readFileSync, realpathSync } from 'node:fs';
-import { basename, dirname, isAbsolute, relative, resolve } from 'node:path';
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { basename, dirname, isAbsolute, resolve } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
-import { currentBranch, findRoot, inside, loadProject, matches, projectPath } from './project.ts';
+import {
+  CONFIG,
+  currentBranch,
+  findRoot,
+  inside,
+  loadProject,
+  matches,
+  projectPath,
+} from './project.ts';
 import { startupContext } from './context.ts';
-import { commands, shellKind } from './shell.ts';
+import { commands, isShipping, shellKind } from './shell.ts';
 import { normalize } from './tools.ts';
 import { HOOK_BUDGET, digest, fingerprint, invalidate, sessionKey, withState } from './state.ts';
 import { hasReview } from './review.ts';
-import { evaluatePolicy, approvalReason } from './policy.ts';
+import { evaluatePolicy } from './policy.ts';
 import { parseCommand } from './cli.ts';
 import { packageDigest } from './package.ts';
 import { claimsDone, completionStatus } from './status.ts';
@@ -135,33 +143,32 @@ async function extensions(project: Project) {
   return loaded;
 }
 
+// Edits that could rewrite the agent's own permissions, Git internals or the checks
+// behind the done proof still ask.
 function protectedPatterns(project: Project) {
   const { root, config } = project;
-  const patterns = [...config.protectedPaths, ...config.extensions];
+  const patterns = [
+    CONFIG,
+    `**/${CONFIG}`,
+    '.git',
+    '.git/**',
+    '**/.git',
+    '**/.git/**',
+    '.pi/**',
+    '.claude/**',
+    '.codex/**',
+    '.agents/plugins/**',
+    ...config.extensions,
+  ];
   for (const command of [config.gate, config.review]) {
     if (command && command[0]!.includes('/') && inside(root, resolve(root, command[0]!))) {
       patterns.push(projectPath(root, root, command[0]!));
     }
-  }
-  if (inside(root, pluginRoot)) {
-    const path = relative(root, pluginRoot);
-    if (path) {
-      patterns.push(path + '/**');
-    } else {
-      const parsed: unknown = JSON.parse(readFileSync(resolve(pluginRoot, 'package.json'), 'utf8'));
-      const { files } = parsed as PackageMetadata;
-      // The shipping inventory excludes development sources in a self-hosted checkout.
-      const developmentPaths = [
-        'core',
-        'adapters',
-        'bin',
-        'scripts',
-        'tests',
-        'tsconfig.json',
-        'package-lock.json',
-      ];
-      for (const file of [...files, 'package.json', ...developmentPaths]) {
-        patterns.push(file, file + '/**');
+    // Scripts handed to an interpreter, as in ["node", "scripts/check.ts"].
+    for (const arg of command?.slice(1) ?? []) {
+      const file = resolve(root, arg);
+      if (inside(root, file) && existsSync(file) && statSync(file).isFile()) {
+        patterns.push(projectPath(root, root, arg));
       }
     }
   }
@@ -187,7 +194,7 @@ export async function handle(harness: string | undefined, raw: unknown): Promise
   const approval =
     event === 'UserPromptSubmit' &&
     typeof payload.prompt === 'string' &&
-    payload.prompt.trim().match(/^approve workflow ([a-f0-9]{64})( for this session)?$/);
+    payload.prompt.trim().match(/^approve workflow ([a-f0-9]{64})$/);
   // Ordinary prompts must remain usable even when project configuration is broken.
   if (event === 'UserPromptSubmit' && !approval) return {};
   // A personal install loads these hooks in every session; there is no project to guard here.
@@ -212,20 +219,7 @@ export async function handle(harness: string | undefined, raw: unknown): Promise
             'Workflow approval is missing, stale or expired. Retry the original operation to request a fresh approval.',
         };
       }
-      const forSession = Boolean((approval as RegExpMatchArray)[2]);
-      if (forSession && !pending.session) {
-        return {
-          context:
-            'This operation cannot be approved for the session. Send the one-time approval instead.',
-        };
-      }
       state.approved = pending.id;
-      if (forSession && pending.session) {
-        state.sessionAllowed = [...new Set([...(state.sessionAllowed ?? []), pending.session])];
-        return {
-          context: `Approved workflow request ${pending.id} for this session. Retry the exact original operation.`,
-        };
-      }
       return {
         context: `Approved workflow request ${pending.id}, once. Retry the exact original operation.`,
       };
@@ -254,19 +248,8 @@ export async function handle(harness: string | undefined, raw: unknown): Promise
   const runner = runnerKind(call);
   const modules = await extensions(project);
 
+  // The gate receipt names a tree fingerprint, so completion needs no per-command invalidation.
   if (event === 'PostToolUse') {
-    if (
-      action.kind !== 'read' &&
-      !gate &&
-      !review &&
-      runner !== 'read' &&
-      !(
-        action.kind === 'shell' &&
-        shellKind(action.command, config.readCommands, root, action.cwd) === 'read'
-      )
-    ) {
-      await withState(root, key, (state) => invalidate(state));
-    }
     const notes = [];
     if (!payload.is_error) {
       for (const module of modules) {
@@ -283,7 +266,7 @@ export async function handle(harness: string | undefined, raw: unknown): Promise
     return {
       decision: 'deny',
       reason:
-        'Run the gate as a plain command on its own, with your session key: node <runner> gate <session-key>. Inside a pipeline, chain or redirect it is not recognized, and the hook clears the receipt it writes.',
+        'Run the gate as a plain command on its own, with your session key: node <runner> gate <session-key>. Inside a pipeline, chain or redirect it is not recognized.',
     };
   }
 
@@ -373,67 +356,40 @@ export async function handle(harness: string | undefined, raw: unknown): Promise
       const reason = await module.pre({ root, config, action });
       if (reason) return { decision: 'deny', reason: reason as string };
     }
-    const reason = approvalReason({
-      kind,
-      actionKind: action.kind,
-      protectedFiles:
-        action.kind === 'files' &&
-        action.files.some((file) => matches(file.path, protectedPatterns(project))),
-      nativeShell: config.workflow.shellApproval === 'native',
+    const reason =
+      action.kind === 'files' &&
+      action.files.some((file) => matches(file.path, protectedPatterns(project)))
+        ? 'This edit changes Git metadata, harness settings, or the workflow configuration and checks.'
+        : call?.verb === 'history-clean'
+          ? 'This deletes harness session history. Review the plan before approving.'
+          : (action.kind === 'shell' && (approvedShipping || isShipping(action.command))) ||
+              // Codex can type a command into a shell it already started.
+              (payload.tool_name === 'write_stdin' &&
+                isShipping(String((payload.tool_input as ToolInput | undefined)?.chars ?? '')))
+            ? 'This command commits, merges, pushes or publishes. Review the exact command before approving.'
+            : undefined;
+    if (!reason) return {};
+    const requestTree = getTree();
+    const request = digest([
       harness,
-      branchProtected: config.protectedBranches.includes(branch as string),
-      toolName: payload.tool_name,
-    });
-    // Pi has no native permission layer, so it may approve one exact non-file
-    // operation for the session. Plan mode already denied above; shipping on a
-    // protected branch reaches here and stays one-time.
-    const session =
-      harness === 'pi' &&
-      action.kind !== 'files' &&
-      !config.protectedBranches.includes(branch as string)
-        ? digest(['session', payload.tool_name, payload.tool_input, action])
-        : undefined;
-    if (reason && !(session && state.sessionAllowed?.includes(session))) {
-      const requestTree = getTree();
-      let request = digest([
-        harness,
-        key,
-        payload.tool_name,
-        payload.tool_input,
-        action,
-        requestTree,
-        state.revision,
-      ]);
-      if (
-        state.approved !== request ||
-        state.pending?.id !== request ||
-        Date.now() - state.pending.at > 600000
-      ) {
-        // Claude's native ask may execute without another pre hook. Invalidate
-        // before returning ask, including when the user later declines it.
-        if (harness === 'claude') {
-          invalidate(state);
-          request = digest([
-            harness,
-            key,
-            payload.tool_name,
-            payload.tool_input,
-            action,
-            requestTree,
-            state.revision,
-          ]);
-        }
-        state.pending = {
-          id: request,
-          tree: requestTree,
-          at: Date.now(),
-          ...(session && { session }),
-        };
-        return { decision: 'ask', reason, request, ...(session && { session: true }) };
-      }
-      state.pending = null;
+      key,
+      payload.tool_name,
+      payload.tool_input,
+      action,
+      requestTree,
+      state.revision,
+    ]);
+    if (
+      state.approved !== request ||
+      state.pending?.id !== request ||
+      Date.now() - state.pending.at > 600000
+    ) {
+      state.pending = { id: request, tree: requestTree, at: Date.now() };
+      return { decision: 'ask', reason, request };
     }
-    invalidate(state);
+    // The approval is one-use. The gate receipt stays bound to its tree fingerprint.
+    state.pending = null;
+    state.approved = null;
     return {};
   });
 }

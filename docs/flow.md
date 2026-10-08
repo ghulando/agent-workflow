@@ -26,7 +26,7 @@ Before applying, edit the proposal: set `gate` to the command that fully checks 
 
 ## Approvals
 
-When the guard needs your consent, for example to edit a protected path or run a shell command it cannot classify, it prints a request id. Approve it by sending this as a chat message, not a shell command:
+When the guard needs your consent, for a commit, merge, push or publish or an edit to workflow, Git or harness settings, it prints a request id. Approve it by sending this as a chat message, not a shell command:
 
 ```
 approve workflow <request-id>
