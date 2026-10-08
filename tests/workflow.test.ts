@@ -25,6 +25,7 @@ import { install, installPlan } from '../core/install.ts';
 import { loadProject } from '../core/project.ts';
 import { skills } from '../core/context.ts';
 import { evaluatePolicy } from '../core/policy.ts';
+import { commands } from '../core/shell.ts';
 
 function fixture(t: TestContext, overrides = {}) {
   const root = mkdtempSync(join(tmpdir(), 'workflow-test-'));
@@ -1264,6 +1265,88 @@ test('startup context stays inside the native preview and points to the workflow
   assert.match(context!, /skills\/workflow\/SKILL\.md/);
   assert.doesNotMatch(context!, /flow-review/);
   assert.doesNotMatch(context!, /Adapted from Pstack poteto-mode/);
+});
+
+test('startup context prints the session review command only when review is required', async (t) => {
+  const runner = quote(resolve(pluginRoot, 'bin/workflow.ts'));
+  assert.doesNotMatch(
+    (await call(fixture(t), 'claude', 'SessionStart')).context!,
+    /Run independent review/,
+  );
+  const root = realpathSync(
+    fixture(t, { workflow: { requireReview: true, reviewers: { codex: {} } } }),
+  );
+  const key = sessionKey(root, 'claude', 'test-session');
+  assert.ok(
+    (await call(root, 'claude', 'SessionStart')).context!.includes(
+      `Run independent review with: node ${runner} review <task-file> --author claude --reviewer <reviewer> --round <n> --gate-session ${key}`,
+    ),
+  );
+  const config = JSON.parse(readFileSync(join(root, '.agent-workflow.json'), 'utf8'));
+  writeFileSync(
+    join(root, '.agent-workflow.json'),
+    JSON.stringify({ ...config, review: ['scripts/review.sh'] }),
+  );
+  assert.ok(
+    (await call(root, 'claude', 'SessionStart')).context!.includes(
+      `Run independent review with: REVIEW_GATE_SESSION=${key} AGENT_WORKFLOW_RUNNER=${runner} 'scripts/review.sh' <task-file> claude <reviewer> [round]`,
+    ),
+  );
+});
+
+test('a review wrapper on a protected branch is recognised only with the session runner', async (t) => {
+  const root = realpathSync(
+    fixture(t, {
+      review: ['scripts/review.sh'],
+      workflow: { requireReview: true, reviewers: { codex: {} } },
+    }),
+  );
+  execFileSync('git', ['checkout', '-q', '-b', 'main'], { cwd: root });
+  const key = sessionKey(root, 'claude', 'test-session');
+  const wrapper = (runner: string) =>
+    call(root, 'claude', 'PreToolUse', 'Bash', {
+      command: `REVIEW_GATE_SESSION=${key} ${runner}scripts/review.sh docs/tasks/task.md claude codex 1`,
+    });
+  const runner = resolve(pluginRoot, 'bin/workflow.ts');
+  assert.equal((await wrapper('')).decision, undefined);
+  assert.equal((await wrapper(`AGENT_WORKFLOW_RUNNER=${quote(runner)} `)).decision, undefined);
+  for (const path of ['scripts/review wrapper.sh', "scripts/review's.sh"]) {
+    const other = realpathSync(
+      fixture(t, {
+        review: [path],
+        workflow: { requireReview: true, reviewers: { codex: {} } },
+      }),
+    );
+    execFileSync('git', ['checkout', '-q', '-b', 'main'], { cwd: other });
+    const printed = (await call(other, 'claude', 'SessionStart'))
+      .context!.match(/Run independent review with: (.+)/)![1]!
+      .replace('<task-file>', 'docs/tasks/task.md')
+      .replace('<reviewer>', 'codex')
+      .replace('[round]', '1');
+    assert.equal(
+      (await call(other, 'claude', 'PreToolUse', 'Bash', { command: printed })).decision,
+      undefined,
+      printed,
+    );
+  }
+  for (const other of ['/tmp/workflow.ts', `${runner}x`, '']) {
+    assert.equal((await wrapper(`AGENT_WORKFLOW_RUNNER=${quote(other)} `)).decision, 'deny', other);
+  }
+});
+
+test('quoted paths parse back to the same word, including apostrophes', () => {
+  for (const path of [
+    '/plain/bin/workflow.ts',
+    '/a b/bin/workflow.ts',
+    "/Users/o'neil/bin/workflow.ts",
+    `/it's "$HOME" \\ \`x\`/workflow.ts`,
+  ]) {
+    assert.deepEqual(
+      commands(`node ${quote(path)} gate key`),
+      [['node', path, 'gate', 'key']],
+      path,
+    );
+  }
 });
 
 test('Herdr team skill is discoverable as a bundled skill without requiredSkills', (t) => {

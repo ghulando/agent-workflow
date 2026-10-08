@@ -1,5 +1,5 @@
 import type { PackageMetadata } from './types.ts';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { authors, eligibleReviewers, personalRoot } from './flow-config.ts';
@@ -17,6 +17,14 @@ export function doctor(cwd: string, author?: string) {
     (author ? [author] : []).map((name) => [name, eligibleReviewers(config.workflow, name)]),
   );
   if (!config.gate) issues.push('No gate is configured; managed task completion is unavailable.');
+  if (config.review) {
+    const path = resolve(root, config.review[0]!);
+    // existsSync also covers a parent that is a file, where statSync throws ENOTDIR.
+    const wrapper = existsSync(path) ? statSync(path) : null;
+    if (!wrapper?.isFile() || !(wrapper.mode & 0o111)) {
+      issues.push(`Review wrapper ${config.review[0]} is missing or not executable.`);
+    }
+  }
   if (config.workflow.requireReview) {
     for (const [name, providers] of Object.entries(reviewers)) {
       if (!providers.length) issues.push(`No configured independent reviewer for ${name}.`);

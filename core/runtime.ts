@@ -33,10 +33,23 @@ import { packageDigest } from './package.ts';
 import { claimsDone, completionStatus } from './status.ts';
 
 export const pluginRoot = fileURLToPath(new URL('../', import.meta.url));
-export const quote = (text: string) => "'" + text.replace(/'/g, "'\\''") + "'";
+// The guard re-parses printed commands and rejects a backslash outside quotes,
+// so text with an apostrophe goes in double quotes instead of '\''.
+export const quote = (text: string) =>
+  text.includes("'") ? '"' + text.replace(/["\\$`]/g, '\\$&') + '"' : "'" + text + "'";
+
+const runnerPath = () => resolve(pluginRoot, 'bin/workflow.ts');
 
 export function gateCommand(key: string) {
-  return `node ${quote(resolve(pluginRoot, 'bin/workflow.ts'))} gate ${key}`;
+  return `node ${quote(runnerPath())} gate ${key}`;
+}
+
+// The runner's location differs per harness install, so each session names its own.
+export function reviewCall(key: string, harness: string, config: ProjectConfig) {
+  if (config.review) {
+    return `REVIEW_GATE_SESSION=${key} AGENT_WORKFLOW_RUNNER=${quote(runnerPath())} ${quote(config.review[0]!)} <task-file> ${harness} <reviewer> [round]`;
+  }
+  return `node ${quote(runnerPath())} review <task-file> --author ${harness} --reviewer <reviewer> --round <n> --gate-session ${key}`;
 }
 
 function runnerCall(action: Action, root: string) {
@@ -97,7 +110,11 @@ function isReview(
   }
   if (action.kind !== 'shell' || resolve(action.cwd) !== root) return false;
   const parts = commands(action.command);
-  const p = parts?.[0];
+  let p = parts?.[0];
+  if (p?.[1]?.startsWith('AGENT_WORKFLOW_RUNNER=')) {
+    if (p[1] !== `AGENT_WORKFLOW_RUNNER=${runnerPath()}`) return false;
+    p = [p[0]!, ...p.slice(2)];
+  }
   return (
     parts?.length === 1 &&
     config.review?.length === 1 &&
@@ -203,7 +220,15 @@ export async function handle(harness: string | undefined, raw: unknown): Promise
   const { root, config } = project;
   const key = sessionKey(root, harness, payload.session_id);
   if (event === 'SessionStart') {
-    return { context: startupContext(project, key, gateCommand(key), harness) };
+    return {
+      context: startupContext(
+        project,
+        key,
+        gateCommand(key),
+        reviewCall(key, harness, config),
+        harness,
+      ),
+    };
   }
   if (event === 'UserPromptSubmit') {
     return withState(root, key, (state) => {

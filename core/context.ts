@@ -61,7 +61,13 @@ export function skills(project: Project) {
   return found;
 }
 
-export function startupContext(project: Project, key: string, gateCommand: string, author: string) {
+export function startupContext(
+  project: Project,
+  key: string,
+  gateCommand: string,
+  reviewCall: string,
+  author: string,
+) {
   const catalog = skills(project);
   const workflow = catalog.find((skill) => skill.name === 'workflow');
   const local = catalog.filter((skill) => !skill.bundled);
@@ -75,6 +81,9 @@ export function startupContext(project: Project, key: string, gateCommand: strin
     project.config.gate
       ? `Run the full configured gate with: ${gateCommand}`
       : 'No gate configured. Task completion markers are blocked until a gate is configured.',
+    ...(project.config.workflow.requireReview
+      ? [`Run independent review with: ${reviewCall}`]
+      : []),
     'An approval request can be approved by sending exactly: approve workflow <request-id>. Only the pending operation is authorized, once, on the same tree.',
     'Report which project skills you loaded. Read applicable on-demand skills before writing code. Follow project review and invariant requirements before marking done.',
     `Read the workflow skill before implementation tasks: ${workflow!.file}. Substantial tasks get a short plan before coding; small clear fixes proceed directly. Keep task progress portable across harnesses.`,

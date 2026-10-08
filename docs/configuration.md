@@ -66,7 +66,9 @@ With `transport: "pi"`, Ollama runs through Pi with tools, extensions, skills an
 
 ### Review wrapper
 
-`review` is a one-element array naming an executable inside the repository, such as `["scripts/review.sh"]`. The guard recognises it only when run from the project root exactly as `REVIEW_GATE_SESSION=<session key> scripts/review.sh <task-file> <author> <reviewer> [round]`, where the reviewer is `claude`, `codex` or `ollama` and the round is 1 to 10. The wrapper has to call the runner's `review` command itself. Because the guard recognises it, the wrapper can run on protected branches, and edits to it ask first.
+`review` is a one-element array naming an executable inside the repository, such as `["scripts/review.sh"]`. The guard recognises it only when run from the project root exactly as `REVIEW_GATE_SESSION=<session key> scripts/review.sh <task-file> <author> <reviewer> [round]`, where the reviewer is `claude`, `codex` or `ollama` and the round is 1 to 10. The wrapper has to call the runner's `review` command itself. The runner sits in a different place for each harness install, so session context prints the wrapper call with `AGENT_WORKFLOW_RUNNER=<runner>` after the session key, and the wrapper runs `node "$AGENT_WORKFLOW_RUNNER" review ...`. The guard accepts that variable only when it names the session's own runner. Because the guard recognises the call, the wrapper can run on protected branches, and edits to it ask first. `doctor` reports a wrapper that is missing or not executable.
+
+Most projects need no wrapper. Without one, session context prints the runner's `review` command ready to run. CI and Git hooks should run the project's checks directly, because gate and review receipts live in the local session state.
 
 ### Review exceptions
 

@@ -209,6 +209,18 @@ test('CLI help, doctor exit status and current-harness diagnostics are observabl
   assert.match(context!, /No configured independent reviewer for codex/);
   assert.doesNotMatch(context!, /No configured independent reviewer for (pi|claude)/);
   assert.doesNotMatch(doctor(root).issues.join(' '), /independent reviewer/);
+  const configFile = join(root, '.agent-workflow.json');
+  const config = JSON.parse(readFileSync(configFile, 'utf8'));
+  writeFileSync(configFile, JSON.stringify({ ...config, review: ['scripts/review.sh'] }));
+  assert.match(doctor(root).issues.join(' '), /Review wrapper scripts\/review.sh is missing/);
+  mkdirSync(join(root, 'scripts'));
+  writeFileSync(join(root, 'scripts/review.sh'), '#!/bin/sh\n', { mode: 0o644 });
+  assert.match(doctor(root).issues.join(' '), /not executable/);
+  chmodSync(join(root, 'scripts/review.sh'), 0o755);
+  assert.doesNotMatch(doctor(root).issues.join(' '), /Review wrapper/);
+  writeFileSync(configFile, JSON.stringify({ ...config, review: ['scripts/review.sh/run'] }));
+  assert.match(doctor(root).issues.join(' '), /Review wrapper scripts\/review.sh\/run is missing/);
+  writeFileSync(configFile, JSON.stringify(config));
   const copy = join(root, 'plugins/agent-workflow');
   mkdirSync(copy, { recursive: true });
   writeFileSync(join(copy, 'package.json'), '{"name":"agent-workflow","version":"9.9.9"}');

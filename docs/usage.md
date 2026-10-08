@@ -32,7 +32,7 @@ Requirements: `HERDR_ENV=1` in the panes, the Herdr read commands in your person
 
 The engine is the hooks, the shell guard, the gate and the review runner. It enforces the rules below in every harness and does not depend on the agent remembering them.
 
-Hooks run at session start, on each prompt, and before and after each tool call. The session-start hook injects the session key, the gate command and the path to the `workflow` skill.
+Hooks run at session start, on each prompt, and before and after each tool call. The session-start hook injects the session key, the gate and review commands and the path to the `workflow` skill.
 
 The guard keeps a small set of rules. On a protected branch (`main` and `master` by default) it allows only reads: built-in readers and entries in `readCommands`. Plan mode is read-only in the same way. Commit, merge, push and publish commands ask in every harness, as do edits to Git metadata, harness settings (`.claude`, `.codex`, `.pi`), `.agent-workflow.json` and the gate, review and extension scripts. Everything else on a feature or fix branch runs under the harness's own permissions. Claude Code shows its own dialog for an ask; Codex and Pi print `approve workflow <request-id>`, which you send as a chat message, and Pi also shows a dialog.
 
