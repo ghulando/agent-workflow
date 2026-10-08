@@ -13,16 +13,6 @@ interface PolicyInput {
   protectedBranches: string[];
 }
 
-interface ApprovalInput {
-  kind: string;
-  actionKind: string;
-  protectedFiles: boolean;
-  nativeShell: boolean;
-  harness: string;
-  branchProtected: boolean;
-  toolName: string | undefined;
-}
-
 const opaqueReason =
   'This command could not be classified as read-only because of shell substitution, variables or similar syntax. Use a plain read command with literal paths.';
 
@@ -70,25 +60,4 @@ export function evaluatePolicy({
     };
   }
   return null;
-}
-
-export function approvalReason({
-  kind,
-  actionKind,
-  protectedFiles,
-  nativeShell,
-  harness,
-  branchProtected,
-  toolName,
-}: ApprovalInput) {
-  if (protectedFiles) {
-    return 'This edit changes the workflow, checks or protected project configuration.';
-  }
-  const nativelyApproved = nativeShell && harness !== 'pi' && !branchProtected;
-  if (actionKind === 'shell' && kind !== 'branch' && !nativelyApproved) {
-    return 'This shell command can change files, publish changes or execute unclassified code. Review the exact command before approving.';
-  }
-  if (actionKind === 'unknown') {
-    return `Tool ${toolName} is not classified as read-only. Review its arguments before approving.`;
-  }
 }

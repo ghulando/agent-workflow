@@ -5,7 +5,6 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import {
   chmodSync,
-  cpSync,
   linkSync,
   mkdtempSync,
   mkdirSync,
@@ -18,7 +17,6 @@ import {
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 import { handle, pluginRoot, quote, runGate } from '../core/runtime.ts';
 import { sessionKey, fingerprint, stateDirectory, withState } from '../core/state.ts';
@@ -154,45 +152,85 @@ for (const harness of ['pi', 'claude', 'codex']) {
     );
   });
 
-  test(`${harness}: native shell approval retains workflow invariants`, async (t) => {
-    const root = fixture(t, {
-      workflow: { shellApproval: 'native', requireReview: true },
-      protectedPaths: ['secret/**'],
-    });
+  test(`${harness}: feature branches run shell freely and only shipping asks`, async (t) => {
+    const root = realpathSync(fixture(t, { workflow: { requireReview: true } }));
     const key = sessionKey(root, harness, 'test-session');
+    const bash = (command: string, extra = {}) =>
+      call(root, harness, 'PreToolUse', 'Bash', { command }, extra);
+    for (let run = 0; run < 2; run++) {
+      writeFileSync(join(root, 'source.txt'), `edit ${run}\n`);
+      for (const command of ['npm test', 'go test ./...', 'node -e "process.exit(0)"']) {
+        assert.equal((await bash(command)).decision, undefined, command);
+      }
+    }
     await runGate(root, key);
-    const shell = { command: 'node -e "process.exit(0)"' };
-    assert.equal(
-      (await call(root, harness, 'PreToolUse', 'Bash', shell)).decision,
-      harness === 'pi' ? 'ask' : undefined,
-    );
-    if (harness !== 'pi') await withState(root, key, (state) => assert.equal(state.pass, null));
-    await runGate(root, key);
-    await call(root, harness, 'PostToolUse', 'Bash', shell);
-    await withState(root, key, (state) => assert.equal(state.pass, null));
+    await call(root, harness, 'PostToolUse', 'Bash', { command: 'npm test' });
+    await withState(root, key, (state) => assert.notEqual(state.pass, null));
+    for (const command of [
+      'git commit -m x',
+      'git -C . commit -m x',
+      'git merge feature/other',
+      'git push',
+      'npm test && git push',
+      'npm publish',
+      'docker push example/image',
+      'npm run deploy',
+      'npm run release',
+      'echo $(git push)',
+      'git add src/*.ts && git commit -m x',
+      '/usr/bin/git commit -m x',
+      'g\\it commit -m x',
+      "'git' push",
+      'npm test # note\ngit push',
+      "sh -c 'git push'",
+      'bash -lc "npm test && git commit -m x"',
+      'git --git-dir .git commit -m x',
+      'git --work-tree . push',
+      'git \\\ncommit -m x',
+    ]) {
+      const result = await bash(command);
+      assert.equal(result.decision, 'ask', command);
+      assert.ok(result.request, command);
+    }
+    for (const command of [
+      'rg "deploy" src',
+      'npm test # git commit',
+      'npm test -- --grep "push button"',
+      "sh -c 'npm test'",
+    ]) {
+      assert.equal((await bash(command)).decision, undefined, command);
+    }
+    const stdin = (chars: string) =>
+      call(root, harness, 'PreToolUse', 'write_stdin', { session_id: 7, chars });
+    assert.equal((await stdin('git push\n')).decision, 'ask');
+    assert.equal((await stdin('y\n')).decision, undefined);
+    // Asking, and an approved retry that leaves the tree alone, keep the gate receipt.
+    await withState(root, key, (state) => assert.notEqual(state.pass, null));
+    const asked = await bash('git push');
+    await call(root, harness, 'UserPromptSubmit', undefined, undefined, {
+      prompt: `approve workflow ${asked.request!}`,
+    });
+    assert.equal((await bash('git push')).decision, undefined);
+    assert.equal((await bash('git push')).decision, 'ask');
+    await withState(root, key, (state) => assert.notEqual(state.pass, null));
     const [tool, input] = writeInput(harness, 'docs/tasks/new.md', '**Status:** done.');
-    assert.equal((await call(root, harness, 'PreToolUse', tool, input)).decision, 'deny');
-    await runGate(root, key);
     assert.match(
       (await call(root, harness, 'PreToolUse', tool, input)).reason!,
       /completion edit may change only task status/,
     );
-    const [protectedTool, protectedInput] = writeInput(harness, 'secret/new.txt', 'secret');
-    assert.equal(
-      (await call(root, harness, 'PreToolUse', protectedTool, protectedInput)).decision,
-      'ask',
-    );
-    assert.equal(
-      (await call(root, harness, 'PreToolUse', 'Bash', shell, { permission_mode: 'plan' }))
-        .decision,
-      'deny',
-    );
+    for (const path of ['.claude/settings.json', '.agent-workflow.json', '.git/config']) {
+      const [protectedTool, protectedInput] = writeInput(harness, path, 'x');
+      assert.equal(
+        (await call(root, harness, 'PreToolUse', protectedTool, protectedInput)).decision,
+        'ask',
+        path,
+      );
+    }
+    assert.equal((await bash('npm test', { permission_mode: 'plan' })).decision, 'deny');
     execFileSync('git', ['checkout', '-q', '-b', 'main'], { cwd: root });
-    assert.equal((await call(root, harness, 'PreToolUse', 'Bash', shell)).decision, 'deny');
-    assert.equal(
-      (await call(root, harness, 'PreToolUse', 'Bash', { command: 'git push' })).decision,
-      'ask',
-    );
+    assert.equal((await bash('npm test')).decision, 'deny');
+    assert.equal((await bash('git commit -m x')).decision, 'deny');
+    assert.equal((await bash('git push')).decision, 'ask');
     execFileSync('git', ['checkout', '-q', '-b', 'feature/test'], { cwd: root });
     writeFileSync(join(root, 'guard.mjs'), "export const pre = () => 'extension blocked';\n");
     const config = JSON.parse(
@@ -200,10 +238,7 @@ for (const harness of ['pi', 'claude', 'codex']) {
     ) as ProjectConfig;
     config.extensions = ['guard.mjs'];
     writeFileSync(join(root, '.agent-workflow.json'), JSON.stringify(config));
-    assert.equal(
-      (await call(root, harness, 'PreToolUse', 'Bash', shell)).reason!,
-      'extension blocked',
-    );
+    assert.equal((await bash('npm test')).reason!, 'extension blocked');
   });
 }
 
@@ -229,12 +264,16 @@ test('read command objects and shell approval settings validate strictly', (t) =
   ]) {
     assert.throws(() => loadProject(root, { readCommands: [bad] }), /readCommands|read command/);
   }
-  assert.equal(loadProject(root).config.workflow.shellApproval, 'workflow');
+  // Older configurations keep loading; the settings no longer change behaviour.
+  assert.doesNotThrow(() =>
+    loadProject(root, { protectedPaths: ['secret/**'], workflow: { shellApproval: 'workflow' } }),
+  );
   assert.throws(() => loadProject(root, { workflow: { shellApproval: 'allow' } }), /shellApproval/);
+  assert.throws(() => loadProject(root, { protectedPaths: [1] }), /protectedPaths/);
 });
 
 for (const harness of ['pi', 'claude', 'codex']) {
-  test(`${harness}: branch, plan and unknown tools fail closed`, async (t) => {
+  test(`${harness}: branch and plan modes fail closed for unknown tools`, async (t) => {
     const root = fixture(t);
     execFileSync('git', ['checkout', '-q', '-b', 'main'], { cwd: root });
     const [tool, input] = writeInput(harness, 'new.txt', 'hello');
@@ -268,32 +307,41 @@ for (const harness of ['pi', 'claude', 'codex']) {
       undefined,
     );
     assert.equal(
+      (
+        await call(
+          root,
+          harness,
+          'PreToolUse',
+          'custom_write',
+          { path: 'source.txt' },
+          { permission_mode: 'plan' },
+        )
+      ).decision,
+      'deny',
+    );
+    assert.equal(
       (await call(root, harness, 'PreToolUse', 'custom_write', { path: 'source.txt' })).decision,
-      'ask',
+      undefined,
     );
   });
 
-  test(`${harness}: a real gate unlocks exactly one done marker`, async (t) => {
+  test(`${harness}: a real gate unlocks the done marker only on its own tree`, async (t) => {
     const root = fixture(t);
     const key = sessionKey(root, harness, 'test-session');
     const [tool, input] = writeInput(harness, 'docs/tasks/new.md', '**Status:** done.');
     assert.equal((await call(root, harness, 'PreToolUse', tool, input)).decision, 'deny');
     await runGate(root, key);
     assert.equal((await call(root, harness, 'PreToolUse', tool, input)).decision, undefined);
+    writeFileSync(join(root, 'source.txt'), 'changed after the gate\n');
     assert.equal((await call(root, harness, 'PreToolUse', tool, input)).decision, 'deny');
   });
 
-  test(`${harness}: outside edits, partial failures and sentinel spoofing invalidate or cannot establish a pass`, async (t) => {
+  test(`${harness}: outside edits and sentinel spoofing invalidate or cannot establish a pass`, async (t) => {
     const root = fixture(t);
     const key = sessionKey(root, harness, 'test-session');
     const [tool, input] = writeInput(harness, 'docs/tasks/new.md', '**Status:** done.');
     await runGate(root, key);
     writeFileSync(join(root, 'source.txt'), 'changed outside harness\n');
-    assert.equal((await call(root, harness, 'PreToolUse', tool, input)).decision, 'deny');
-    await runGate(root, key);
-    const [mutator, edit] = writeInput(harness, 'other.txt', 'changed');
-    await call(root, harness, 'PreToolUse', mutator, edit);
-    await call(root, harness, 'PostToolUse', mutator, edit, { is_error: true });
     assert.equal((await call(root, harness, 'PreToolUse', tool, input)).decision, 'deny');
     await call(
       root,
@@ -392,42 +440,6 @@ test('task status completion checks include trailing Markdown spaces and comment
     });
     assert.equal(result.decision, 'deny');
     assert.match(result.reason!, /Run the full configured gate/);
-  }
-});
-
-test('a plugin at the project root protects shipped paths without protecting application files', async (t) => {
-  const root = realpathSync(fixture(t));
-  for (const path of ['core', 'skills', 'package.json']) {
-    cpSync(resolve(pluginRoot, path), join(root, path), { recursive: true });
-  }
-  const { handle: localHandle } = (await import(
-    pathToFileURL(join(root, 'core/runtime.ts')).href
-  )) as typeof import('../core/runtime.ts');
-  const check = (path: string) =>
-    localHandle('codex', {
-      cwd: root,
-      session_id: 'root-plugin',
-      hook_event_name: 'PreToolUse',
-      tool_name: 'Write',
-      tool_input: { file_path: path, content: 'changed' },
-    });
-  // Reintroducing '/**' at the root leaves every shipped path unprotected.
-  for (const path of [
-    'skills/flow-test/SKILL.md',
-    'README.md',
-    'package.json',
-    'core/runtime.ts',
-    'adapters/pi.ts',
-    'bin/workflow.ts',
-    'scripts/verify-install.ts',
-    'tests/workflow.test.ts',
-    'tsconfig.json',
-    'package-lock.json',
-  ]) {
-    assert.equal((await check(path)).decision, 'ask', path);
-  }
-  for (const path of ['source.txt', 'docs/tasks/notes.md']) {
-    assert.equal((await check(path)).decision, undefined, path);
   }
 });
 
@@ -947,8 +959,8 @@ test('a gate inside a pipeline, chain or redirect is refused before it loses its
 
 test('history runners work from protected-branch subdirectories without widening other runners', async (t) => {
   for (const harness of ['claude', 'codex', 'pi']) {
-    for (const shellApproval of ['native', 'workflow']) {
-      const root = fixture(t, { workflow: { shellApproval, requireReview: false } });
+    {
+      const root = fixture(t);
       execFileSync('git', ['checkout', '-q', '-b', 'main'], { cwd: root });
       const sub = join(root, 'sub');
       mkdirSync(sub);
@@ -974,7 +986,7 @@ test('history runners work from protected-branch subdirectories without widening
         assert.equal(
           (await call(root, harness, 'PreToolUse', 'Bash', { command }, { cwd })).decision,
           'ask',
-          `${harness} ${shellApproval} ${cwd}`,
+          `${harness} ${cwd}`,
         );
         assert.equal(
           (
@@ -1435,68 +1447,47 @@ test('quoted backslashes, multi-range sed, check-ignore and project -C are reads
   );
 });
 
-test('Pi session approval covers one exact non-file operation and never a file or another harness', async (t) => {
+test('scripts handed to an interpreter by the gate are protected', async (t) => {
+  const root = fixture(t, { gate: ['node', 'scripts/check.ts'] });
+  mkdirSync(join(root, 'scripts'));
+  writeFileSync(join(root, 'scripts/check.ts'), 'process.exit(0);\n');
+  for (const harness of ['pi', 'claude', 'codex']) {
+    const [tool, input] = writeInput(harness, 'scripts/check.ts', 'process.exit(0);\n');
+    assert.equal((await call(root, harness, 'PreToolUse', tool, input)).decision, 'ask', harness);
+    const [other, otherInput] = writeInput(harness, 'scripts/other.ts', 'x');
+    assert.equal((await call(root, harness, 'PreToolUse', other, otherInput)).decision, undefined);
+  }
+});
+
+test('Pi approval covers one exact shipping operation, once', async (t) => {
   const root = fixture(t);
-  const shell = { command: 'npm pack --dry-run' };
+  const shell = { command: 'git push' };
   const first = await call(root, 'pi', 'PreToolUse', 'bash', shell);
   assert.equal(first.decision, 'ask');
-  assert.equal(first.session, true);
-  assert.match(
-    (
-      await call(root, 'pi', 'UserPromptSubmit', undefined, undefined, {
-        prompt: `approve workflow ${first.request} for this session`,
-      })
-    ).context!,
-    /for this session/,
+  // A session-wide approval is an ordinary prompt and authorizes nothing.
+  assert.deepEqual(
+    await call(root, 'pi', 'UserPromptSubmit', undefined, undefined, {
+      prompt: `approve workflow ${first.request} for this session`,
+    }),
+    {},
   );
-  for (let i = 0; i < 3; i++) {
-    assert.equal((await call(root, 'pi', 'PreToolUse', 'bash', shell)).decision, undefined);
-    await call(root, 'pi', 'PostToolUse', 'bash', shell);
-  }
-  assert.equal(
-    (await call(root, 'pi', 'PreToolUse', 'bash', { command: 'npm pack' })).decision,
-    'ask',
-  );
-  assert.equal(
-    (await call(root, 'pi', 'PreToolUse', 'bash', shell, { session_id: 'other-session' })).decision,
-    'ask',
-  );
-  assert.equal(
-    (await call(root, 'pi', 'PreToolUse', 'bash', shell, { permission_mode: 'plan' })).decision,
-    'deny',
-  );
-  const file = await call(root, 'pi', 'PreToolUse', 'write', {
-    path: '.agent-workflow.json',
-    content: '{}',
+  assert.equal((await call(root, 'pi', 'PreToolUse', 'bash', shell)).decision, 'ask');
+  const second = await call(root, 'pi', 'PreToolUse', 'bash', shell);
+  await call(root, 'pi', 'UserPromptSubmit', undefined, undefined, {
+    prompt: `approve workflow ${second.request}`,
   });
-  assert.equal(file.session, undefined);
-  assert.match(
-    (
-      await call(root, 'pi', 'UserPromptSubmit', undefined, undefined, {
-        prompt: `approve workflow ${file.request} for this session`,
-      })
-    ).context!,
-    /cannot be approved for the session/,
-  );
-  assert.equal(
-    (await call(root, 'pi', 'PreToolUse', 'write', { path: '.agent-workflow.json', content: '{}' }))
-      .decision,
-    'ask',
-  );
-  const codex = await call(root, 'codex', 'PreToolUse', 'Bash', shell);
-  assert.equal(codex.session, undefined);
-  execFileSync('git', ['checkout', '-q', '-b', 'main'], { cwd: root });
-  assert.equal((await call(root, 'pi', 'PreToolUse', 'bash', shell)).decision, 'deny');
+  assert.equal((await call(root, 'pi', 'PreToolUse', 'bash', shell)).decision, undefined);
+  assert.equal((await call(root, 'pi', 'PreToolUse', 'bash', shell)).decision, 'ask');
 });
 
 for (const harness of ['pi', 'claude', 'codex']) {
   test(`${harness}: dangling symlinks are judged by the file they would create`, async (t) => {
-    const root = fixture(t, { protectedPaths: ['secret/**'] });
+    const root = fixture(t);
     const outside = mkdtempSync(join(tmpdir(), 'workflow-dangling-'));
     t.after(() => rmSync(outside, { recursive: true, force: true }));
     mkdirSync(join(root, 'nested'));
     symlinkSync(join(root, 'nested/.agent-workflow.json'), join(outside, 'config-alias'));
-    symlinkSync(join(root, 'secret/key.txt'), join(root, 'link.txt'));
+    symlinkSync(join(root, '.claude/settings.json'), join(root, 'link.txt'));
     symlinkSync(join(outside, 'escape-target.txt'), join(root, 'escape.txt'));
     for (const path of [join(outside, 'config-alias'), 'link.txt']) {
       const [tool, input] = writeInput(harness, path, 'x');
@@ -1593,10 +1584,8 @@ test('cd into another repository is not a read, while cd inside the project is',
 });
 
 for (const harness of ['claude', 'codex', 'pi']) {
-  test(`${harness}: nested Git reads require default-mode guarding`, async (t) => {
-    const root = fixture(t, {
-      workflow: { requireReview: false, shellApproval: 'workflow' },
-    });
+  test(`${harness}: nested Git reads are not reads on protected branches`, async (t) => {
+    const root = fixture(t);
     const nested = join(root, 'vendor');
     execFileSync('git', ['init', '-q', nested]);
     for (const branch of ['main', 'feature/test']) {
@@ -1614,7 +1603,11 @@ for (const harness of ['claude', 'codex', 'pi']) {
           { command, workdir },
           { permission_mode: 'default' },
         );
-        assert.equal(result.decision, branch === 'main' ? 'deny' : 'ask', `${branch}: ${command}`);
+        assert.equal(
+          result.decision,
+          branch === 'main' ? 'deny' : undefined,
+          `${branch}: ${command}`,
+        );
       }
     }
   });
@@ -1671,14 +1664,11 @@ test('Pi shipping on a protected branch gets only one-time approval', async (t) 
   execFileSync('git', ['checkout', '-q', '-b', 'main'], { cwd: root });
   const push = await call(root, 'pi', 'PreToolUse', 'bash', { command: 'git push' });
   assert.equal(push.decision, 'ask');
-  assert.equal(push.session, undefined);
-  assert.match(
-    (
-      await call(root, 'pi', 'UserPromptSubmit', undefined, undefined, {
-        prompt: `approve workflow ${push.request} for this session`,
-      })
-    ).context!,
-    /cannot be approved for the session/,
+  assert.deepEqual(
+    await call(root, 'pi', 'UserPromptSubmit', undefined, undefined, {
+      prompt: `approve workflow ${push.request} for this session`,
+    }),
+    {},
   );
   assert.equal(
     (await call(root, 'pi', 'PreToolUse', 'bash', { command: 'git push' })).decision,

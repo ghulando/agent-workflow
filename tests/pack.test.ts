@@ -195,11 +195,7 @@ test('personal defaults are overridden per project and invalid reviewer settings
   assert.equal(config.featurePrefix, 'repo/');
   assert.equal(config.taskDirectory, 'tasks');
   assert.equal(config.reviewers.claude!.model, 'personal-model');
-  assert.equal(config.shellApproval, 'native');
-  assert.equal(
-    loadProject(root, { workflow: { shellApproval: 'workflow' } }).config.workflow.shellApproval,
-    'workflow',
-  );
+  assert.equal(Object.hasOwn(config, 'shellApproval'), false);
   assert.throws(() => flowConfig({ reviewers: { ollama: {} } }), /explicit model/);
   assert.throws(() => flowConfig({ reviewers: { claude: { command: 'evil' } } }), /settings/);
   assert.throws(() => flowConfig({ taskDirectory: '../outside' }), /relative/);
@@ -905,7 +901,7 @@ test('review context includes unchanged dependencies and required project skills
   assert.match(snapshot!, /Check actual acceptance evidence/);
 });
 
-test('review survives native pre/post hooks while lookalike commands invalidate the gate', async (t) => {
+test('review survives native pre/post hooks', async (t) => {
   fakeReviewers(t);
   for (const author of ['pi', 'codex', 'claude']) {
     const root = fixture(t);
@@ -950,24 +946,6 @@ test('review survives native pre/post hooks while lookalike commands invalidate 
       (await rawReview(root, task.task, { author, reviewer, round: 2, gateSession: key })).verdict,
       'pass',
     );
-    await handle(author, {
-      ...payload,
-      hook_event_name: 'PreToolUse',
-      tool_input: { command: command + ' --extra' },
-    });
-    if (author === 'claude') {
-      await assert.rejects(
-        rawReview(root, task.task, { author, reviewer, round: 2, gateSession: key }),
-        /full session gate/,
-      );
-    }
-    const { withState } = await import('../core/state.ts');
-    await handle(author, {
-      ...payload,
-      hook_event_name: 'PostToolUse',
-      tool_input: { command: command + ' --extra' },
-    });
-    assert.equal(await withState(root, key, (state) => state.pass), null);
   }
 });
 

@@ -36,12 +36,16 @@ export function flowConfig(input: unknown = {}): FlowConfig {
     reviewExclude: [],
     reviewContext: [],
     reviewExceptions: {},
-    shellApproval: 'workflow',
   };
-  for (const key of Object.keys(input)) {
+  // shellApproval is accepted from older configurations; shell commands no longer ask.
+  const { shellApproval, ...settings } = input as Record<string, unknown>;
+  for (const key of Object.keys(settings)) {
     if (!Object.hasOwn(defaults, key)) throw new Error(`unknown workflow setting: ${key}`);
   }
-  const value = { ...defaults, ...input } as FlowConfig;
+  if (shellApproval !== undefined && !['workflow', 'native'].includes(shellApproval as string)) {
+    throw new Error('invalid workflow shellApproval');
+  }
+  const value = { ...defaults, ...settings } as FlowConfig;
   for (const key of ['taskDirectory', 'baseBranch', 'featurePrefix', 'fixPrefix'] as const) {
     if (
       typeof value[key] !== 'string' ||
@@ -59,9 +63,6 @@ export function flowConfig(input: unknown = {}): FlowConfig {
     throw new Error('taskDirectory must be a relative directory');
   }
   if (typeof value.requireReview !== 'boolean') throw new Error('requireReview must be boolean');
-  if (!['workflow', 'native'].includes(value.shellApproval)) {
-    throw new Error('invalid workflow shellApproval');
-  }
   for (const key of ['reviewExclude', 'reviewContext'] as const) {
     if (
       !Array.isArray(value[key]) ||

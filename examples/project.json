@@ -4,10 +4,6 @@
     "main",
     "master"
   ],
-  "protectedPaths": [
-    "scripts/**",
-    ".github/**"
-  ],
   "taskFiles": [
     "docs/tasks/**.md"
   ],

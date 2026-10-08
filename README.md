@@ -1,6 +1,6 @@
 # Agent Workflow
 
-One development workflow for Claude Code, Codex and Pi. Agents plan on a feature or fix branch, keep task notes under `docs/tasks/`, run your project's gate and get an independent review before a task is marked done. Hooks block work on protected branches, ask before edits to protected paths, and refuse a done marker until the gate has passed on the current tree.
+One development workflow for Claude Code, Codex and Pi. Agents plan on a feature or fix branch, keep task notes under `docs/tasks/`, run your project's gate and get an independent review before a task is marked done. Hooks block work on protected branches, ask before commit, merge, push and publish, and refuse a done marker until the gate and review have passed on the current tree. Everything else runs under the harness's own permissions.
 
 The repository ships TypeScript only. Node runs it directly, so installing needs no build step and no `npm install`.
 

@@ -111,7 +111,6 @@ export function loadProject(cwd: string, proposed?: unknown): Project {
   const keys = [
     'version',
     'protectedBranches',
-    'protectedPaths',
     'taskFiles',
     'doneMarker',
     'gate',
@@ -126,7 +125,9 @@ export function loadProject(cwd: string, proposed?: unknown): Project {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw new Error('workflow configuration must be an object');
   }
-  const input = raw as Partial<ProjectConfig>;
+  // protectedPaths is accepted from older configurations and ignored; built-in paths stay protected.
+  const { protectedPaths, ...input } = raw as Partial<ProjectConfig> & { protectedPaths?: unknown };
+  if (protectedPaths !== undefined) strings(protectedPaths, 'protectedPaths');
   for (const key of Object.keys(input)) {
     if (!keys.includes(key)) throw new Error(`unknown workflow option: ${key}`);
   }
@@ -135,7 +136,6 @@ export function loadProject(cwd: string, proposed?: unknown): Project {
   }
   const config = {
     protectedBranches: ['main', 'master'],
-    protectedPaths: [],
     taskFiles: ['docs/tasks/**.md', 'tasks/**.md'],
     doneMarker: '**Status:** done.',
     gate: null,
@@ -149,7 +149,6 @@ export function loadProject(cwd: string, proposed?: unknown): Project {
   } as ProjectConfig;
   for (const key of [
     'protectedBranches',
-    'protectedPaths',
     'taskFiles',
     'skillRoots',
     'requiredSkills',
@@ -199,21 +198,6 @@ export function loadProject(cwd: string, proposed?: unknown): Project {
     strings(config[key], key);
     if (config[key].length === 0) throw new Error(`${key} command is empty`);
   }
-  config.protectedPaths = [
-    ...new Set([
-      CONFIG,
-      `**/${CONFIG}`,
-      '.git',
-      '.git/**',
-      '**/.git',
-      '**/.git/**',
-      '.pi/**',
-      '.claude/**',
-      '.codex/**',
-      '.agents/plugins/**',
-      ...config.protectedPaths,
-    ]),
-  ];
   const local = config.workflow ?? {};
   if (
     input.workflow === null ||
