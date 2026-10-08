@@ -54,7 +54,7 @@ export function personalInstallPlan(
   claude.extraKnownMarketplaces ??= {};
   const marketplace = { source: { source: 'directory', path: source } };
   // The source marketplace name is stable across project and personal installs.
-  const market = 'agent-workflow-local';
+  const market = 'ghulando';
   const existing = claude.extraKnownMarketplaces[market];
   if (
     existing &&
@@ -90,8 +90,8 @@ export function personalInstallPlan(
   });
   const codexPath = resolve(home, '.codex/config.toml');
   const toml = existsSync(codexPath) ? readFileSync(codexPath, 'utf8') : '';
-  const heading = '[plugins."agent-workflow@agent-workflow-local"]';
-  const headings = [heading, "[plugins.'agent-workflow@agent-workflow-local']"];
+  const heading = '[plugins."agent-workflow@ghulando"]';
+  const headings = [heading, "[plugins.'agent-workflow@ghulando']"];
   const table = toml
     .split(/(?=^\s*\[)/m)
     .find((part) => headings.some((key) => part.trimStart().startsWith(key)));
@@ -112,12 +112,10 @@ export function personalInstallPlan(
         : { destination: source, files: [...packageInfo.files, 'package.json'] },
     commands: [
       ['claude', 'plugin', 'marketplace', 'add', source],
-      ['claude', 'plugin', 'install', 'agent-workflow@agent-workflow-local'],
+      ['claude', 'plugin', 'install', 'agent-workflow@ghulando'],
       ['codex', 'plugin', 'marketplace', 'add', destination],
-      ...(upgrade || repairing
-        ? [['codex', 'plugin', 'remove', 'agent-workflow@agent-workflow-local']]
-        : []),
-      ['codex', 'plugin', 'add', 'agent-workflow@agent-workflow-local'],
+      ...(upgrade || repairing ? [['codex', 'plugin', 'remove', 'agent-workflow@ghulando']] : []),
+      ['codex', 'plugin', 'add', 'agent-workflow@ghulando'],
     ],
     instruction:
       'Review this plan before applying. Existing plugins and project settings are retained. Run native marketplace/install commands, then restart every open Claude Code and Codex session: a running session keeps the old plugin path and its hooks stop working. Explicitly trust hooks. Do not enable the same Pi extension both globally and per repo.',

@@ -118,10 +118,7 @@ try {
     readFileSync(join(app, '.agents/plugins/marketplace.json'), 'utf8'),
   ) as Marketplace;
   assert.equal(resolve(app, '.pi', pi.packages![0]!), installed);
-  assert.equal(
-    resolve(app, claude.extraKnownMarketplaces!['agent-workflow-local']!.source.path),
-    installed,
-  );
+  assert.equal(resolve(app, claude.extraKnownMarketplaces!['ghulando']!.source.path), installed);
   assert.equal(resolve(app, codex.plugins[0]!.source.path), installed);
   const { handle } = (await import(
     join(installed, 'core/runtime.ts')

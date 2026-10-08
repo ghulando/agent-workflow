@@ -21,16 +21,16 @@ Install in whichever harnesses you use. Each one installs straight from GitHub.
 
 ```sh
 claude plugin marketplace add ghulando/agent-workflow
-claude plugin install agent-workflow@agent-workflow-local
+claude plugin install agent-workflow@ghulando
 ```
 
-The first command registers this repository as a plugin marketplace named `agent-workflow-local`. The second installs the plugin from it.
+The first command registers this repository as a plugin marketplace named `ghulando`. The second installs the plugin from it.
 
 ### Codex
 
 ```sh
 codex plugin marketplace add ghulando/agent-workflow
-codex plugin add agent-workflow@agent-workflow-local
+codex plugin add agent-workflow@ghulando
 ```
 
 Codex reads the same marketplace file as Claude Code, so the marketplace has the same name.
@@ -72,32 +72,46 @@ Run `flow-setup` in the project. The [flow diagram](docs/flow.md) shows the whol
 ## Update
 
 ```sh
-claude plugin marketplace update agent-workflow-local
-claude plugin uninstall agent-workflow@agent-workflow-local
-claude plugin install agent-workflow@agent-workflow-local
+claude plugin marketplace update ghulando
+claude plugin uninstall agent-workflow@ghulando
+claude plugin install agent-workflow@ghulando
 
-codex plugin marketplace upgrade agent-workflow-local
-codex plugin remove agent-workflow@agent-workflow-local
-codex plugin add agent-workflow@agent-workflow-local
+codex plugin marketplace upgrade ghulando
+codex plugin remove agent-workflow@ghulando
+codex plugin add agent-workflow@ghulando
 
 pi update --extension git:github.com/ghulando/agent-workflow
 ```
 
 The first command for each harness fetches the latest `main`. Claude Code and Codex cache plugins by version, so the uninstall and reinstall pick up new code even when the version number has not changed. Restart each harness afterwards, and approve hook trust again if it asks.
 
+### Moving from the old marketplace name
+
+The marketplace used to be called `agent-workflow-local`. An install under that name stays enabled next to the new one, and the guard then runs twice. Remove the old install once, then install as described above:
+
+```sh
+claude plugin uninstall agent-workflow@agent-workflow-local
+claude plugin marketplace remove agent-workflow-local
+
+codex plugin remove agent-workflow@agent-workflow-local
+codex plugin marketplace remove agent-workflow-local
+```
+
+A project that enabled the plugin in its own `.claude/settings.json` needs `claude plugin uninstall agent-workflow@agent-workflow-local --scope project`, run in that project. Codex keeps hook trust per plugin name, so it asks for trust again.
+
 ## Install from a local clone
 
-Use this to run your own changes. It copies the package to `~/.config/agent-workflow/package` and installs every harness from there. Do not combine it with the GitHub install: both use the marketplace name `agent-workflow-local`, so remove the GitHub install first.
+Use this to run your own changes. It copies the package to `~/.config/agent-workflow/package` and installs every harness from there. Do not combine it with the GitHub install: both use the marketplace name `ghulando`, so remove the GitHub install first.
 
 ```sh
 node bin/workflow.ts install-user
 node bin/workflow.ts install-user --apply
 
 claude plugin marketplace add ~/.config/agent-workflow/package
-claude plugin install agent-workflow@agent-workflow-local
+claude plugin install agent-workflow@ghulando
 
 codex plugin marketplace add ~/.config/agent-workflow
-codex plugin add agent-workflow@agent-workflow-local
+codex plugin add agent-workflow@ghulando
 ```
 
 `install-user` previews the changes and `--apply` writes them. It registers the package with Pi in `~/.pi/agent/settings.json`, creates `personal.json` and prints the workspace settings from step 3 above. Then follow "After installing".
@@ -110,11 +124,11 @@ git pull
 node bin/workflow.ts install-user --repair
 node bin/workflow.ts install-user --repair --apply
 
-claude plugin uninstall agent-workflow@agent-workflow-local
-claude plugin install agent-workflow@agent-workflow-local
+claude plugin uninstall agent-workflow@ghulando
+claude plugin install agent-workflow@ghulando
 
-codex plugin remove agent-workflow@agent-workflow-local
-codex plugin add agent-workflow@agent-workflow-local
+codex plugin remove agent-workflow@ghulando
+codex plugin add agent-workflow@ghulando
 ```
 
 `--repair` refreshes the package even when the version has not changed.

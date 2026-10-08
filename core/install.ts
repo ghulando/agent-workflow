@@ -81,7 +81,7 @@ export function installPlan(
 
   const claude = json<HarnessSettings>(resolve(root, '.claude/settings.json'));
   claude.extraKnownMarketplaces ??= {};
-  const market = 'agent-workflow-local';
+  const market = 'ghulando';
   const existing = claude.extraKnownMarketplaces[market];
   const location = './' + relative(root, installedRoot).replace(/\/$/, '');
   const directory = { source: { source: 'directory', path: location } };

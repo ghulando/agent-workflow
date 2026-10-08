@@ -581,7 +581,7 @@ test('installation preserves existing settings, is idempotent and preflights con
   writeFileSync(
     join(root, '.claude/settings.json'),
     JSON.stringify({
-      extraKnownMarketplaces: { 'agent-workflow-local': { source: { path: 'another' } } },
+      extraKnownMarketplaces: { ghulando: { source: { path: 'another' } } },
     }),
   );
   assert.throws(() => installPlan(root), /another source/);
@@ -602,7 +602,7 @@ test('a dangling Claude skills symlink fails installation before any files are w
 test('installation preserves an equivalent single-quoted Codex plugin table', (t) => {
   const root = fixture(t);
   mkdirSync(join(root, '.codex'));
-  const toml = "[plugins.'agent-workflow@agent-workflow-local']\nenabled = true\n";
+  const toml = "[plugins.'agent-workflow@ghulando']\nenabled = true\n";
   writeFileSync(join(root, '.codex/config.toml'), toml);
   install(root);
   // Matching only the generated double-quoted heading appends a duplicate table.

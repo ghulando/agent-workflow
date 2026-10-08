@@ -156,6 +156,8 @@ node bin/workflow.ts install /path/to/app
 
 When the package sits outside the application, `install` copies it into `plugins/agent-workflow`. It creates new settings and instruction files with mode 0600 and keeps the mode of existing ones. It merges settings, keeping existing plugins, hooks, permissions and model choices, and stops before writing anything if a registration conflicts. You still register the plugin, restart and approve hook trust in each harness. Pick either project-local or personal install per harness, or the guard runs twice.
 
+The marketplace used to be called `agent-workflow-local`. Before re-running `install` in a project installed under that name, delete the `agent-workflow-local` entry from `extraKnownMarketplaces` and `agent-workflow@agent-workflow-local` from `enabledPlugins` in its `.claude/settings.json`. Otherwise both names stay enabled. `install` keeps the name of an existing `.agents/plugins/marketplace.json`, because that file can list the repository's other plugins, so the Codex registration keeps working under the old name.
+
 To repair a vendored copy you have reviewed:
 
 ```sh

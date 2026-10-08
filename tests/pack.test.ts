@@ -325,7 +325,7 @@ test('personal install preview preserves unrelated plugins and permissions witho
   ) as HarnessSettings & { permissions?: unknown };
   assert.equal(settings.enabledPlugins!['example-plugin@example-marketplace'], true);
   assert.deepEqual(settings.permissions, { deny: ['Read(.env)'] });
-  assert.equal(settings.enabledPlugins!['agent-workflow@agent-workflow-local'], true);
+  assert.equal(settings.enabledPlugins!['agent-workflow@ghulando'], true);
   assert.equal(existsSync(join(home, '.pi')), false);
   assert.equal(existsSync(plan.copy!.destination), false);
 });
@@ -337,7 +337,7 @@ test('personal install commands register Claude for fresh and existing installat
   const source = join(destination, 'package');
   const expected = [
     ['claude', 'plugin', 'marketplace', 'add', source],
-    ['claude', 'plugin', 'install', 'agent-workflow@agent-workflow-local'],
+    ['claude', 'plugin', 'install', 'agent-workflow@ghulando'],
   ];
   assert.deepEqual(
     personalInstallPlan(home, destination).commands.filter((command) => command[0] === 'claude'),
@@ -385,10 +385,10 @@ test('personal upgrades stage a replacement and preserve preferences; same versi
   assert.ok(plan.copy);
   assert.deepEqual(plan.commands, [
     ['claude', 'plugin', 'marketplace', 'add', target],
-    ['claude', 'plugin', 'install', 'agent-workflow@agent-workflow-local'],
+    ['claude', 'plugin', 'install', 'agent-workflow@ghulando'],
     ['codex', 'plugin', 'marketplace', 'add', destination],
-    ['codex', 'plugin', 'remove', 'agent-workflow@agent-workflow-local'],
-    ['codex', 'plugin', 'add', 'agent-workflow@agent-workflow-local'],
+    ['codex', 'plugin', 'remove', 'agent-workflow@ghulando'],
+    ['codex', 'plugin', 'add', 'agent-workflow@ghulando'],
   ]);
   installPersonal();
   assert.equal(
@@ -489,7 +489,7 @@ test('personal installation recognizes an equivalent single-quoted Codex plugin 
   const home = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-user-toml-')));
   t.after(() => rmSync(home, { recursive: true, force: true }));
   mkdirSync(join(home, '.codex'));
-  const toml = "[plugins.'agent-workflow@agent-workflow-local']\nenabled = true\n";
+  const toml = "[plugins.'agent-workflow@ghulando']\nenabled = true\n";
   writeFileSync(join(home, '.codex/config.toml'), toml);
   const plan = personalInstallPlan(home, join(home, '.config/agent-workflow'));
   assert.equal(
