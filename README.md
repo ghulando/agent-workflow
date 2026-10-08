@@ -17,6 +17,14 @@ git --version
 
 Install in whichever harnesses you use. Each one installs straight from GitHub.
 
+The install script does this for every harness it finds on your `PATH`, and running it again updates them:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/ghulando/agent-workflow/main/scripts/install.sh | sh
+```
+
+It also removes an install under the old marketplace name. Then follow "After installing". The sections below are the same steps by hand.
+
 ### Claude Code
 
 ```sh
@@ -71,6 +79,8 @@ Run `flow-setup` in the project. The [flow diagram](docs/flow.md) shows the whol
 
 ## Update
 
+Run the install script again, or by hand:
+
 ```sh
 claude plugin marketplace update ghulando
 claude plugin uninstall agent-workflow@ghulando
@@ -87,7 +97,7 @@ The first command for each harness fetches the latest `main`. Claude Code and Co
 
 ### Moving from the old marketplace name
 
-The marketplace used to be called `agent-workflow-local`. An install under that name stays enabled next to the new one, and the guard then runs twice. Remove the old install once, then install as described above:
+The marketplace used to be called `agent-workflow-local`. An install under that name stays enabled next to the new one, and the guard then runs twice. The install script removes it for you. By hand, remove the old install once, then install as described above:
 
 ```sh
 claude plugin uninstall agent-workflow@agent-workflow-local

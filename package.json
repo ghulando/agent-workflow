@@ -17,6 +17,7 @@
     "adapters",
     "bin",
     "core",
+    "scripts/install.sh",
     "scripts/verify-hosts.ts",
     "scripts/verify-install.ts",
     "tests",
