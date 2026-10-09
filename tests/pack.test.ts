@@ -551,6 +551,24 @@ for (const [author, choices] of Object.entries(reviewerChoices)) {
   }
 }
 
+test('a re-review receives the preceding findings and the first review does not', async (t) => {
+  const root = fixture(t);
+  const task = start(root);
+  const log = fakeReviewers(t, 'blocked');
+  writeFileSync(join(root, 'source.txt'), 'implementation change');
+  const input = () => (JSON.parse(readFileSync(log, 'utf8')) as { input: string }).input;
+  await runReview(root, task.task, { author: 'codex', reviewer: 'claude', round: 1 });
+  const first = input();
+  assert.match(first, /Report every finding you can establish/);
+  assert.match(first, /only access to the repository/);
+  assert.doesNotMatch(first, /PREVIOUS FINDINGS/);
+  await runReview(root, task.task, { author: 'codex', reviewer: 'claude', round: 2 });
+  const second = input();
+  assert.match(second, /This is a re-review\. Round 1 by claude/);
+  assert.match(second, /PREVIOUS FINDINGS \[\{"severity":"blocking","location":"source\.txt:1"/);
+  assert.match(second, /"Follow-up:"/);
+});
+
 test('a pane review records only the independent reviewer own verdict file', async (t) => {
   const root = fixture(t);
   const task = start(root);
