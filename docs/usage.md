@@ -10,7 +10,7 @@ Use one agent for most work: docs, one-file fixes, small features.
 2. The agent runs `task-start`, which needs a clean tree and creates `feature/<id>` and `docs/tasks/<id>.md`. Keep one task per branch. A second task on the same branch puts the first task's commits into the second task's review.
 3. For anything beyond a small fix, the agent writes acceptance criteria and a plan into the task file and stops. Read them. This is the cheapest place to correct a wrong assumption.
 4. The agent implements, runs the gate and updates the task notes.
-5. The agent runs one recorded review. A pass completes the task. A blocked review gets one fix pass and one re-review; anything still open comes to you.
+5. The agent runs one recorded review. A pass completes the task. A blocked review gets one fix pass and one re-review. The re-review checks the earlier findings, and only a new issue serious enough to block a first review can block it; smaller new issues come back as follow-ups, which the agent lists for you and keeps in the task workspace. Anything still open comes to you.
 6. The agent shows the diff and offers a retro. On your yes, `flow-retro` reads the task's workflow events, grills you on each finding and appends the result to `~/.agent-workflow/<harness>-retro-log.md`. A finding seen in two or more retros is marked actionable.
 7. The agent asks before committing. Merge and push each need a separate yes.
 
