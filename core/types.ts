@@ -40,6 +40,31 @@ export interface HistoryDigest {
   firstPrompt: string;
 }
 
+export interface RetroCount {
+  reason: string;
+  count: number;
+}
+
+export interface RetroHarnessEvents {
+  sessions: string[];
+  denials: RetroCount[];
+  asks: RetroCount[];
+  approvals: number;
+  gatePasses: number;
+  gateFailures: RetroCount[];
+}
+
+export interface RetroEvents {
+  task: string;
+  repo: string;
+  workspace: string;
+  window: { from: string; to: string };
+  files: { name: string; bytes: number; modified: string }[];
+  reviews: { reviewer: string; round: number; verdict: string }[];
+  retroLogs: string[];
+  events: Record<Harness, RetroHarnessEvents>;
+}
+
 export type Reviewer = 'claude' | 'codex' | 'ollama';
 
 export interface ReviewerSettings {

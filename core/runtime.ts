@@ -135,6 +135,7 @@ const READ_VERBS = [
   'install-plan',
   'history-plan',
   'history-digest',
+  'retro-events',
 ];
 
 function runnerKind(call: ParsedCommand | null) {

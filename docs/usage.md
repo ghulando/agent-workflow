@@ -11,9 +11,10 @@ Use one agent for most work: docs, one-file fixes, small features.
 3. For anything beyond a small fix, the agent writes acceptance criteria and a plan into the task file and stops. Read them. This is the cheapest place to correct a wrong assumption.
 4. The agent implements, runs the gate and updates the task notes.
 5. The agent runs one recorded review. A pass completes the task. A blocked review gets one fix pass and one re-review; anything still open comes to you.
-6. The agent shows the diff and asks before committing. Merge and push each need a separate yes.
+6. The agent shows the diff and offers a retro. On your yes, `flow-retro` reads the task's workflow events, grills you on each finding and appends the result to `~/.agent-workflow/<harness>-retro-log.md`. A finding seen in two or more retros is marked actionable.
+7. The agent asks before committing. Merge and push each need a separate yes.
 
-Skills you call yourself: `flow-setup` once per new repository, `flow-debug` for a bug or slowdown, `flow-handoff` to move a task to another tool, and `clean-history` to prune session history. The `workflow` skill loads `flow-spec`, `flow-understand`, `flow-design`, `flow-implement`, `flow-test`, `flow-verify` and `flow-review` when a step needs them. The [flow diagram](flow.md) shows the steps.
+Skills you call yourself: `flow-setup` once per new repository, `flow-debug` for a bug or slowdown, `flow-handoff` to move a task to another tool, `flow-retro` to review a finished task, and `clean-history` to prune session history. `clean-history` deletes task workspaces and transcripts, so run a pending retro first; the retro logs themselves survive it. The `workflow` skill loads `flow-spec`, `flow-understand`, `flow-design`, `flow-implement`, `flow-test`, `flow-verify` and `flow-review` when a step needs them. The [flow diagram](flow.md) shows the steps.
 
 ## Team
 
@@ -24,7 +25,8 @@ Use the Herdr team for multi-file code changes where a second pair of eyes befor
 3. The lead runs preflight and reports everything missing in one message. It then creates the branch and task, and for risky code sends Pi to investigate before writing the brief. If the investigation shows a design choice, the lead asks you.
 4. The lead briefs Codex with the acceptance criteria, known limits and the rule to stop when an existing test fails. It watches both panes and approves dialogs that fall inside the brief, one time each.
 5. Codex runs the gate as its last action and reports its session key. The lead briefs Pi to review in its pane; Pi writes `pi-verdict-round1.json` in the task workspace, and the lead records it with `review ... --pane` and Codex's key.
-6. You answer only what reaches you: a design choice, an out-of-scope request, a second blocked review, and commit, merge or push. On `main` the guard accepts only plain `git merge --ff-only` and `git branch -d` for shipping, each after your yes.
+6. After done, the lead offers a retro and runs it in its own pane over the Claude, Codex and Pi transcripts and the team files.
+7. You answer only what reaches you: a design choice, an out-of-scope request, a second blocked review, the retro questions, and commit, merge or push. On `main` the guard accepts only plain `git merge --ff-only` and `git branch -d` for shipping, each after your yes.
 
 Requirements: `HERDR_ENV=1` in the panes, the Herdr read commands in your personal `readCommands`, and the task workspace (`~/.agent-workflow`) writable by Claude and Codex. [Configuration](configuration.md) lists the exact entries.
 

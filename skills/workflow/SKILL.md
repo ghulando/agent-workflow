@@ -27,7 +27,7 @@ Use [flow-verify](../flow-verify/SKILL.md), run the session-context full gate, a
 
 A passing recorded review, including round 1, supplies the review receipt for completion. After a blocked review, fix once, record fixes in the task, rerun affected checks and run one re-review. Remaining blocking findings keep the task unfinished; do not manufacture extra review cycles. The full gate and passing review must both cover the final tree. Update task notes before final checks so documentation edits do not stale them. Mark done with a file-edit tool after both receipts exist. Checks passing does not prove acceptance criteria.
 
-Show what changed, why, and verification evidence. Commit, merge, push, publish, deploy and external ticket/chat updates require explicit authorization. An implementation plan is not shipping approval. Never approve your own workflow request.
+Show what changed, why, and verification evidence. Before asking to commit, offer a [flow-retro](../flow-retro/SKILL.md) and run it only on the user's yes. Commit, merge, push, publish, deploy and external ticket/chat updates require explicit authorization. An implementation plan is not shipping approval. Never approve your own workflow request.
 
 New repos use [flow-setup](../flow-setup/SKILL.md). Plan/review sessions are read-only; exit native plan mode (Pi: /plan) before implementation or running checks.
 

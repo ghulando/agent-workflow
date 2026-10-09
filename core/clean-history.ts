@@ -749,15 +749,12 @@ function promptText(value: unknown): string {
     .join('\n');
 }
 
-export async function digestHistory({
-  harnesses,
-}: {
-  harnesses: Harness[];
-}): Promise<HistoryDigest[]> {
+// Session transcripts and prompt history, the files digests and retrospectives read.
+export function transcriptFiles(harnesses: Harness[]) {
   historyHarnesses(harnesses.join(','));
   const root = roots();
-  const digests: HistoryDigest[] = [];
   validateRoots(root, harnesses);
+  const found: { harness: Harness; file: string; history: boolean }[] = [];
   const files = (dir: string): string[] => {
     const info = stat(dir);
     if (!info || info.isSymbolicLink()) return [];
@@ -791,118 +788,128 @@ export async function digestHistory({
       ) {
         continue;
       }
-      const sessions = new Map<string, HistoryDigest>();
-      const codexEvents = new Set<string>();
-      let defaultId = basename(file, '.jsonl');
-      let cwd = basename(dirname(file));
-      for await (const line of createInterface({
-        input: createReadStream(file, { encoding: 'utf8' }),
-        crlfDelay: Infinity,
-      })) {
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(line);
-        } catch {
-          continue;
-        }
-        const record = object(parsed);
-        const payload = object(record.payload);
-        const message = object(record.message);
-        if (record.isSidechain === true) continue;
-        if (record.type === 'session' && typeof record.id === 'string') defaultId = record.id;
-        if (record.type === 'session_meta' && typeof payload.id === 'string') {
-          defaultId = payload.id;
-        }
-        const project = record.cwd ?? record.project ?? payload.cwd;
-        if (typeof project === 'string') cwd = project;
-        const id = record.sessionId ?? record.session_id ?? defaultId;
-        if (typeof id !== 'string') continue;
-        let digest = sessions.get(id);
-        if (!digest) {
-          digest = {
-            harness,
-            project: cwd,
-            id,
-            firstTimestamp: null,
-            lastTimestamp: null,
-            promptCount: 0,
-            firstPrompt: '',
-          };
-          sessions.set(id, digest);
-        }
-        if (typeof project === 'string') digest.project = project;
-        const stamp = record.timestamp ?? record.ts;
-        if (typeof stamp === 'string' || typeof stamp === 'number') {
-          const date = new Date(typeof stamp === 'number' && stamp < 1e11 ? stamp * 1000 : stamp);
-          if (!Number.isNaN(date.getTime())) {
-            const iso = date.toISOString();
-            if (!digest.firstTimestamp || iso < digest.firstTimestamp) digest.firstTimestamp = iso;
-            if (!digest.lastTimestamp || iso > digest.lastTimestamp) digest.lastTimestamp = iso;
-          }
-        }
-        let text = '';
-        if (record.type === 'user' || (record.type === 'message' && message.role === 'user')) {
-          text = promptText(message.content);
-        } else if (
-          harness === 'codex' &&
-          record.type === 'event_msg' &&
-          payload.type === 'user_message' &&
-          typeof payload.message === 'string'
-        ) {
-          if (!codexEvents.has(id)) {
-            digest.promptCount = 0;
-            digest.firstPrompt = '';
-            codexEvents.add(id);
-          }
-          text = payload.message;
-        } else if (
-          record.type === 'response_item' &&
-          payload.type === 'message' &&
-          payload.role === 'user' &&
-          !codexEvents.has(id)
-        ) {
-          const candidate = promptText(payload.content);
-          if (
-            !/^\s*(?:<environment_context>|<user_instructions>|# AGENTS\.md instructions)/i.test(
-              candidate,
-            )
-          ) {
-            text = candidate;
-          }
-        } else if (typeof record.display === 'string') {
-          text = record.display;
-        } else if (typeof record.text === 'string' && record.session_id) {
-          text = record.text;
-        }
-        if (text && !record.isMeta) {
-          digest.promptCount++;
-          if (!digest.firstPrompt) digest.firstPrompt = text.slice(0, 300);
+      found.push({ harness, file, history: file === join(root[harness], 'history.jsonl') });
+    }
+  }
+  return found;
+}
+
+export async function digestHistory({
+  harnesses,
+}: {
+  harnesses: Harness[];
+}): Promise<HistoryDigest[]> {
+  const digests: HistoryDigest[] = [];
+  for (const { harness, file, history } of transcriptFiles(harnesses)) {
+    const sessions = new Map<string, HistoryDigest>();
+    const codexEvents = new Set<string>();
+    let defaultId = basename(file, '.jsonl');
+    let cwd = basename(dirname(file));
+    for await (const line of createInterface({
+      input: createReadStream(file, { encoding: 'utf8' }),
+      crlfDelay: Infinity,
+    })) {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      const record = object(parsed);
+      const payload = object(record.payload);
+      const message = object(record.message);
+      if (record.isSidechain === true) continue;
+      if (record.type === 'session' && typeof record.id === 'string') defaultId = record.id;
+      if (record.type === 'session_meta' && typeof payload.id === 'string') {
+        defaultId = payload.id;
+      }
+      const project = record.cwd ?? record.project ?? payload.cwd;
+      if (typeof project === 'string') cwd = project;
+      const id = record.sessionId ?? record.session_id ?? defaultId;
+      if (typeof id !== 'string') continue;
+      let digest = sessions.get(id);
+      if (!digest) {
+        digest = {
+          harness,
+          project: cwd,
+          id,
+          firstTimestamp: null,
+          lastTimestamp: null,
+          promptCount: 0,
+          firstPrompt: '',
+        };
+        sessions.set(id, digest);
+      }
+      if (typeof project === 'string') digest.project = project;
+      const stamp = record.timestamp ?? record.ts;
+      if (typeof stamp === 'string' || typeof stamp === 'number') {
+        const date = new Date(typeof stamp === 'number' && stamp < 1e11 ? stamp * 1000 : stamp);
+        if (!Number.isNaN(date.getTime())) {
+          const iso = date.toISOString();
+          if (!digest.firstTimestamp || iso < digest.firstTimestamp) digest.firstTimestamp = iso;
+          if (!digest.lastTimestamp || iso > digest.lastTimestamp) digest.lastTimestamp = iso;
         }
       }
-      for (const digest of sessions.values()) {
-        const existing = digests.find(
-          (value) => value.harness === harness && value.id === digest.id,
-        );
-        if (!existing) {
-          digests.push(digest);
-          continue;
+      let text = '';
+      if (record.type === 'user' || (record.type === 'message' && message.role === 'user')) {
+        text = promptText(message.content);
+      } else if (
+        harness === 'codex' &&
+        record.type === 'event_msg' &&
+        payload.type === 'user_message' &&
+        typeof payload.message === 'string'
+      ) {
+        if (!codexEvents.has(id)) {
+          digest.promptCount = 0;
+          digest.firstPrompt = '';
+          codexEvents.add(id);
         }
-        if (file === join(root[harness], 'history.jsonl')) continue;
+        text = payload.message;
+      } else if (
+        record.type === 'response_item' &&
+        payload.type === 'message' &&
+        payload.role === 'user' &&
+        !codexEvents.has(id)
+      ) {
+        const candidate = promptText(payload.content);
         if (
-          digest.firstTimestamp &&
-          (!existing.firstTimestamp || digest.firstTimestamp < existing.firstTimestamp)
+          !/^\s*(?:<environment_context>|<user_instructions>|# AGENTS\.md instructions)/i.test(
+            candidate,
+          )
         ) {
-          existing.firstTimestamp = digest.firstTimestamp;
-          existing.firstPrompt = digest.firstPrompt;
+          text = candidate;
         }
-        if (
-          digest.lastTimestamp &&
-          (!existing.lastTimestamp || digest.lastTimestamp > existing.lastTimestamp)
-        ) {
-          existing.lastTimestamp = digest.lastTimestamp;
-        }
-        existing.promptCount += digest.promptCount;
+      } else if (typeof record.display === 'string') {
+        text = record.display;
+      } else if (typeof record.text === 'string' && record.session_id) {
+        text = record.text;
       }
+      if (text && !record.isMeta) {
+        digest.promptCount++;
+        if (!digest.firstPrompt) digest.firstPrompt = text.slice(0, 300);
+      }
+    }
+    for (const digest of sessions.values()) {
+      const existing = digests.find((value) => value.harness === harness && value.id === digest.id);
+      if (!existing) {
+        digests.push(digest);
+        continue;
+      }
+      if (history) continue;
+      if (
+        digest.firstTimestamp &&
+        (!existing.firstTimestamp || digest.firstTimestamp < existing.firstTimestamp)
+      ) {
+        existing.firstTimestamp = digest.firstTimestamp;
+        existing.firstPrompt = digest.firstPrompt;
+      }
+      if (
+        digest.lastTimestamp &&
+        (!existing.lastTimestamp || digest.lastTimestamp > existing.lastTimestamp)
+      ) {
+        existing.lastTimestamp = digest.lastTimestamp;
+      }
+      existing.promptCount += digest.promptCount;
     }
   }
   return digests;

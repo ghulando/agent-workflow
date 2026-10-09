@@ -22,6 +22,7 @@ const commandSpecs: Record<string, { count: number; options?: string[]; required
   'history-plan': { count: 0, options: ['harness'], required: ['harness'] },
   'history-digest': { count: 0, options: ['harness'], required: ['harness'] },
   'history-clean': { count: 1, options: ['confirm'], required: ['confirm'] },
+  'retro-events': { count: 1 },
 };
 
 const booleans = new Set(['fix', 'small', 'apply', 'repair', 'stopped-reviewer', 'pane']);

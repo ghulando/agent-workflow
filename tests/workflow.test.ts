@@ -875,6 +875,7 @@ test('the workflow runner task commands work on protected branches', async (t) =
     `${runner} review-status docs/tasks/task.md`,
     `${runner} history-plan --harness all`,
     `${runner} history-digest --harness claude`,
+    `${runner} retro-events login`,
   ]) {
     assert.equal(
       (await call(root, 'claude', 'PreToolUse', 'Bash', { command })).decision,
@@ -887,6 +888,7 @@ test('the workflow runner task commands work on protected branches', async (t) =
     `${runner} task-start login 'Add login' --author claude --apply`,
     `${runner} task-start login 'Add login' --author claude --fix --fix`,
     `${runner} install-user --apply`,
+    `${runner} retro-events login extra`,
     `node other.mjs task-start login 'Add login' --author claude`,
   ]) {
     assert.equal(

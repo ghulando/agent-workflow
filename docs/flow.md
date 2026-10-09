@@ -30,7 +30,10 @@ flowchart TD
     more -- yes --> build
     more -- no --> open["Task stays open; you resolve the remaining findings"]
     review -- yes --> done["Agent marks the task done and shows the diff"]
-    done --> ship["You approve commit, then merge and push, each with its own yes"]
+    done --> retro{"Run the offered retro?"}
+    retro -- yes --> grill["flow-retro reads workflow events, grills you per finding, appends the retro log"]
+    grill --> ship
+    retro -- no --> ship["You approve commit, then merge and push, each with its own yes"]
 
     build -. "switch harness" .-> handoff["flow-handoff, then task-resume in the new tool"]
     handoff -.-> build

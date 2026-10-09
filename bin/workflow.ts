@@ -25,6 +25,7 @@ const help = `agent-workflow commands:
   history-plan --harness claude,pi,codex|all  Preview history and save a private plan
   history-digest --harness claude,pi,codex|all  Print compact session digests
   history-clean <plan-file> --confirm DELETE  Delete reviewed entries, skipping changed ones
+  retro-events <task-id>           Print a task's workspace files and workflow events
 `;
 
 const print = (value: unknown) => process.stdout.write(JSON.stringify(value, null, 2) + '\n');
@@ -54,6 +55,11 @@ try {
       case 'gate':
         await runGate(process.cwd(), positional[0]!);
         break;
+      case 'retro-events': {
+        const { retroEvents } = await import('../core/retro.ts');
+        print(await retroEvents(process.cwd(), positional[0]!));
+        break;
+      }
       case 'install':
       case 'install-plan': {
         const { install, installPlan } = await import('../core/install.ts');

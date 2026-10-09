@@ -65,15 +65,12 @@ try {
         ),
         undefined,
       );
-      assert.equal(
-        (
-          (await handler(
-            { toolName: 'write', input: { path: 'source.txt', content: 'change' } },
-            ctx,
-          )) as { block: boolean }
-        ).block,
-        true,
-      );
+      const denial = (await handler(
+        { toolName: 'write', input: { path: 'source.txt', content: 'change' } },
+        ctx,
+      )) as { block: boolean; reason: string };
+      assert.equal(denial.block, true);
+      assert.match(denial.reason, /^agent-workflow blocked: No work on protected branch main/);
     }
     execFileSync('git', ['checkout', '-q', '-b', 'feature/host-check'], { cwd: root });
     const choices: string[][] = [];

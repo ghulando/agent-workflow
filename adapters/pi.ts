@@ -87,15 +87,17 @@ export default function workflow(pi: ExtensionAPI) {
           result = await handle('pi', input);
         }
       }
+      // Pi records the reason as the whole tool result, so the prefix marks guard blocks for retros.
       if (result.decision) {
         return {
           block: true,
           reason:
-            result.reason + (result.request ? `\nSend: approve workflow ${result.request}` : ''),
+            `agent-workflow blocked: ${result.reason}` +
+            (result.request ? `\nSend: approve workflow ${result.request}` : ''),
         };
       }
     } catch (err) {
-      return { block: true, reason: `agent-workflow: ${(err as Error).message}` };
+      return { block: true, reason: `agent-workflow blocked: ${(err as Error).message}` };
     }
   });
   pi.on('tool_result', async (event, ctx) => {
