@@ -10,6 +10,7 @@ interface PolicyInput {
   branch: string | null;
   branchOperation: boolean;
   shipping: boolean | undefined;
+  shippingAttempt?: boolean | undefined;
   protectedBranches: string[];
 }
 
@@ -27,6 +28,7 @@ export function evaluatePolicy({
   branch,
   branchOperation,
   shipping,
+  shippingAttempt,
   protectedBranches,
 }: PolicyInput): HookResult | null {
   if (readonly && !read) {
@@ -54,9 +56,11 @@ export function evaluatePolicy({
   if (protectedBranches.includes(branch) && !shipping) {
     return {
       decision: 'deny',
-      reason: opaque
-        ? `${opaqueReason} For real changes, create a feature or fix branch first.`
-        : `No work on protected branch ${branch}. Create a feature or fix branch first.`,
+      reason: shippingAttempt
+        ? `No work on protected branch ${branch}. Run each shipping command alone and plain, for example git push origin ${branch}, without a pipe, chain, cd or redirect; it then asks for approval.${opaque ? ' Write names literally, without variables or substitution.' : ''}`
+        : opaque
+          ? `${opaqueReason} For real changes, create a feature or fix branch first.`
+          : `No work on protected branch ${branch}. Create a feature or fix branch first.`,
     };
   }
   return null;

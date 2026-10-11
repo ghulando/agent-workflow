@@ -1,4 +1,11 @@
-import type { Project, Task, ReviewRecord, ReviewVerdict, ReviewerSettings } from './types.ts';
+import type {
+  Project,
+  Task,
+  ReviewFinding,
+  ReviewRecord,
+  ReviewVerdict,
+  ReviewerSettings,
+} from './types.ts';
 import { spawn, spawnSync } from 'node:child_process';
 import {
   chmodSync,
@@ -173,7 +180,12 @@ export function reviewSnapshot(project: Project, task: Task) {
   return sections.join('\n\n');
 }
 
-export function parseVerdict(text: string): ReviewVerdict {
+export function parseVerdict(
+  text: string,
+  deferrals: (Pick<ReviewFinding, 'severity' | 'location' | 'problem'> & {
+    finding: string;
+  })[] = [],
+): ReviewVerdict {
   const clean = text
     .trim()
     .replace(/^```(?:json)?\s*\n/, '')
@@ -203,8 +215,28 @@ export function parseVerdict(text: string): ReviewVerdict {
     ) {
       throw new Error('invalid review finding');
     }
+    // A deferral covers the one finding the user approved, at its recorded severity.
+    if (finding.deferral !== undefined) {
+      const approved = deferrals.find((deferral) => deferral.finding === finding.deferral);
+      if (!approved) throw new Error('review finding cites a deferral the user has not approved');
+      if (approved.severity !== finding.severity) {
+        throw new Error(`review finding cites deferral ${finding.deferral} at another severity`);
+      }
+      if (approved.location !== finding.location || approved.problem !== finding.problem) {
+        throw new Error(
+          `review finding cites deferral ${finding.deferral} but is not the deferred finding; repeat its location and problem exactly`,
+        );
+      }
+    }
   }
-  if (result.verdict === 'pass' && result.findings.some((f) => f.severity !== 'nit')) {
+  const cited = result.findings.flatMap((f) => (f.deferral === undefined ? [] : [f.deferral]));
+  if (new Set(cited).size !== cited.length) {
+    throw new Error('review cites one deferral for more than one finding');
+  }
+  if (
+    result.verdict === 'pass' &&
+    result.findings.some((f) => f.severity !== 'nit' && f.deferral === undefined)
+  ) {
     throw new Error('review claims pass with unresolved findings');
   }
   return result;
@@ -300,6 +332,43 @@ A pass has no unresolved blocking or should-fix findings. Missing evidence for a
 const rereview = (previous: ReviewRecord) =>
   `This is a re-review. Round ${previous.round} by ${previous.reviewer} recorded the PREVIOUS FINDINGS below. In the spec string, state for each whether the current tree resolves it; an unresolved previous finding keeps its severity. Rate a new issue blocking only when you would rate it blocking in a first review. Report a new issue you would rate should-fix as a nit whose problem starts with "Follow-up:", for the author to record.\nPREVIOUS FINDINGS ${JSON.stringify(previous.findings)}\n\n`;
 
+const deferred = (deferrals: NonNullable<ReviewRecord['deferrals']>) =>
+  `DEFERRED FINDINGS. The user approved deferring these earlier findings to later work, as recorded in project configuration. Do not report them as unresolved. In the spec string, list each as deferred. If one still applies to the current tree, report it with "deferral": "<finding id>" and its severity, location and problem exactly as listed; a deferred finding does not block a pass.\nDEFERRED ${JSON.stringify(deferrals)}\n\n`;
+
+// Deferrals name a recorded finding as round<N>#<position>. A blocking finding stays
+// open unless the user's entry also says override.
+function approvedDeferrals(
+  task: Task,
+  config: Project['config'],
+  records: (ReviewRecord | undefined)[],
+) {
+  const approved: NonNullable<ReviewRecord['deferrals']> = [];
+  for (const deferral of Object.hasOwn(config.workflow.reviewDeferrals, task.file)
+    ? config.workflow.reviewDeferrals[task.file]!
+    : []) {
+    const [, round, position] = deferral.finding.match(/^round(\d+)#(\d+)$/)!;
+    const finding = records.find((record) => record?.round === Number(round))?.findings[
+      Number(position) - 1
+    ];
+    if (!finding) {
+      throw new Error(`deferral ${deferral.finding} names no recorded review finding`);
+    }
+    if (finding.severity === 'blocking' && !deferral.override) {
+      process.stderr.write(
+        `workflow: deferral ${deferral.finding} is not applied; deferring a blocking finding needs "override": true from the user\n`,
+      );
+      continue;
+    }
+    approved.push({
+      ...deferral,
+      severity: finding.severity,
+      location: finding.location,
+      problem: finding.problem,
+    });
+  }
+  return approved;
+}
+
 export const reviewKey = (task: Task) =>
   digest([
     'independent-review',
@@ -364,7 +433,7 @@ export async function runReview(
     throw new Error('run the full session gate on this tree before independent review');
   }
   const snapshot = `VERIFIED GATE RECEIPT ${JSON.stringify(gate)}\n\n${reviewSnapshot(project, task)}`;
-  const previous = await withState(root, key, (state) => {
+  const { previous, deferrals } = await withState(root, key, (state) => {
     if (state.running) {
       throw new Error(
         'review is already running; recover a stale run only after stopping its reviewer',
@@ -389,6 +458,11 @@ export async function runReview(
         throw new Error('additional review round already recorded');
       }
     }
+    const deferrals = approvedDeferrals(task, config, [
+      state.first,
+      state.second,
+      ...(state.extraReviews ?? []),
+    ]);
     state.running = {
       id: run,
       ownerPid: process.pid,
@@ -397,9 +471,13 @@ export async function runReview(
       startedAt: new Date().toISOString(),
     };
     state.pass = null;
-    return preceding;
+    return { previous: preceding, deferrals };
   });
-  const prompt = brief + (previous ? rereview(previous) : '') + snapshot;
+  const prompt =
+    brief +
+    (previous ? rereview(previous) : '') +
+    (deferrals.length ? deferred(deferrals) : '') +
+    snapshot;
   let scratch;
   try {
     const workspace = taskWorkspace(root, basename(task.file, '.md'));
@@ -455,7 +533,7 @@ export async function runReview(
         models = Object.keys(envelope.modelUsage ?? {});
       }
     }
-    const verdict = parseVerdict(text);
+    const verdict = parseVerdict(text, deferrals);
     if (fingerprint(root) !== before) {
       throw new Error('tree changed during independent review; no receipt recorded');
     }
@@ -474,20 +552,28 @@ export async function runReview(
       base: task.metadata.base,
       round,
       ...verdict,
+      deferrals,
     };
     const dir = stateDirectory(root);
     const report = join(dir, `${key}-${run}.review.json`);
     writeFileSync(report, JSON.stringify(record, null, 2) + '\n', { mode: 0o600, flag: 'wx' });
     // The team reads verdicts beside its briefs; the receipt stays in private state.
+    // Numbered, so a deferral can name a finding as round<N>#<position>.
     const findings =
       verdict.findings
-        .map((f) => `- ${f.severity} at ${f.location}: ${f.problem} Suggested fix: ${f.suggestion}`)
+        .map(
+          (f, i) =>
+            `${i + 1}. ${f.severity}${f.deferral ? ` (deferred as ${f.deferral})` : ''} at ${f.location}: ${f.problem} Suggested fix: ${f.suggestion}`,
+        )
         .join('\n') || 'None.';
+    const deferredNotes = deferrals.length
+      ? `\n## Deferred\n\n${deferrals.map((d) => `- ${d.finding}, ${d.severity}${d.override ? ' with override' : ''}, approved by ${d.approvedBy}: ${d.reason}`).join('\n')}\n`
+      : '';
     // Rename replaces any preexisting link at the destination instead of writing through it.
     const summary = join(workspace, `.${run}.tmp`);
     writeFileSync(
       summary,
-      `# Review round ${round} by ${reviewer}\n\nVerdict: ${verdict.verdict}. Author: ${author}. Tree: ${before}.\n\n## Standards\n\n${verdict.standards}\n\n## Spec\n\n${verdict.spec}\n\n## Findings\n\n${findings}\n`,
+      `# Review round ${round} by ${reviewer}\n\nVerdict: ${verdict.verdict}. Author: ${author}. Tree: ${before}.\n\n## Standards\n\n${verdict.standards}\n\n## Spec\n\n${verdict.spec}\n\n## Findings\n\n${findings}\n${deferredNotes}`,
       { mode: 0o600, flag: 'wx' },
     );
     renameSync(summary, join(workspace, `${reviewer}-review-round${round}.md`));

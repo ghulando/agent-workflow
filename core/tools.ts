@@ -19,6 +19,8 @@ import { workspaceRoot } from './flow-config.ts';
 import { existsSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+const REBUILD = 're-read each file in the patch and rebuild the hunks from its current text';
+
 const FILE_TOOLS = new Set(['write', 'edit', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
 
 const READ_TOOLS = new Set([
@@ -168,7 +170,7 @@ export function previewPatch(
         if (!hunk.length) return;
         if (anchor !== undefined) {
           const at = source.indexOf(anchor, cursor);
-          if (at < 0) throw new Error('patch context does not match the file');
+          if (at < 0) throw new Error(`patch context does not match the file; ${REBUILD}`);
           cursor = at + 1;
         }
         const old = hunk.filter((line) => line[0] !== '+').map((line) => line.slice(1));
@@ -181,7 +183,7 @@ export function previewPatch(
             break;
           }
         }
-        if (found < 0) throw new Error('patch hunk does not match the file');
+        if (found < 0) throw new Error(`patch hunk does not match the file; ${REBUILD}`);
         replacements.push({ at: found, count: old.length, next });
         if (old.length) cursor = found + old.length;
         hunk = [];
@@ -217,7 +219,9 @@ export function previewPatch(
     }
   }
   if (new Set(files.map((file) => file.path)).size !== files.length) {
-    throw new Error('patch touches the same path more than once');
+    throw new Error(
+      'patch touches the same path more than once; put all changes to each file in one section',
+    );
   }
   if (!files.length) throw new Error('empty patch');
   return files;
@@ -251,7 +255,11 @@ export function normalize(project: Project, payload: HookPayload): Action {
     if (targets.length && targets.every(Boolean)) {
       return { kind: 'workspace', paths: targets as string[] };
     }
-    if (targets.some(Boolean)) throw new Error('patch mixes task workspace and other files');
+    if (targets.some(Boolean)) {
+      throw new Error(
+        'patch mixes task workspace and other files; send workspace files and repository files as separate patches',
+      );
+    }
     return {
       kind: 'files',
       files: previewPatch(root, cwd, patch, payload.hook_event_name === 'PostToolUse'),

@@ -21,7 +21,7 @@ import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import test from 'node:test';
 import { loadProject, git } from '../core/project.ts';
-import { flowConfig, reviewerChoices } from '../core/flow-config.ts';
+import { flowConfig, personalSettings, reviewerChoices } from '../core/flow-config.ts';
 import { startTask, resumeTask, handoffTask, readTask, taskWorkspace } from '../core/tasks.ts';
 import { proposeSetup, applySetup } from '../core/setup.ts';
 import { installPersonal, personalInstallPlan } from '../core/personal-install.ts';
@@ -799,6 +799,177 @@ test('self-review, wrong author, re-review first, and contradictory verdicts fai
     /unresolved/,
   );
   assert.throws(() => parseVerdict('{"verdict":"pass","findings":[]}'), /standards/);
+});
+
+// An Ollama stand-in that returns whatever verdict the test sets and keeps the last prompt.
+function scriptedReviewer(t: TestContext) {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-scripted-')));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const previous = process.env.PATH;
+  process.env.PATH = `${dir}:${previous}`;
+  t.after(() => {
+    process.env.PATH = previous;
+  });
+  writeFileSync(
+    join(dir, 'ollama'),
+    `#!${process.execPath}
+const fs = require('fs');
+let input = '';
+process.stdin.on('data', (bytes) => (input += bytes));
+process.stdin.on('end', () => {
+  fs.writeFileSync(${JSON.stringify(join(dir, 'prompt.txt'))}, input);
+  process.stdout.write(fs.readFileSync(${JSON.stringify(join(dir, 'verdict.json'))}, 'utf8'));
+});
+`,
+  );
+  chmodSync(join(dir, 'ollama'), 0o755);
+  return {
+    returns: (verdict: string, findings: Record<string, string>[]) =>
+      writeFileSync(
+        join(dir, 'verdict.json'),
+        JSON.stringify({ verdict, standards: 'Walked the rules.', spec: 'Checked.', findings }),
+      ),
+    prompt: () => readFileSync(join(dir, 'prompt.txt'), 'utf8'),
+  };
+}
+
+function defer(root: string, task: string, deferrals: Record<string, unknown>[]) {
+  const file = join(root, '.agent-workflow.json');
+  const config = JSON.parse(readFileSync(file, 'utf8')) as { workflow: Record<string, unknown> };
+  config.workflow.reviewDeferrals = { [task]: deferrals };
+  writeFileSync(file, JSON.stringify(config));
+}
+
+const finding = (severity: string, problem: string) => ({
+  severity,
+  location: 'source.txt:1',
+  problem,
+  suggestion: 'Fix it.',
+});
+
+test('a user-approved deferral of a should-fix finding lets the re-review pass', async (t) => {
+  const root = fixture(t);
+  const task = start(root);
+  const reviewer = scriptedReviewer(t);
+  writeFileSync(join(root, 'source.txt'), 'implementation change');
+  reviewer.returns('blocked', [finding('should-fix', 'Missing retry.'), finding('nit', 'Name.')]);
+  const args = { author: 'codex', reviewer: 'ollama' };
+  assert.equal((await runReview(root, task.task, { ...args, round: 1 })).verdict, 'blocked');
+  const workspace = taskWorkspace(root, basename(task.task, '.md'));
+  assert.match(
+    readFileSync(join(workspace, 'ollama-review-round1.md'), 'utf8'),
+    /\n1\. should-fix at source\.txt:1: Missing retry\. .*\n2\. nit at /,
+  );
+  defer(root, task.task, [
+    { finding: 'round1#1', approvedBy: 'Andranik', reason: 'Moved to the retry task.' },
+  ]);
+  // A should-fix deferral cannot excuse a blocking finding or cover two findings.
+  reviewer.returns('pass', [{ ...finding('blocking', 'Unrelated crash.'), deferral: 'round1#1' }]);
+  await assert.rejects(
+    runReview(root, task.task, { ...args, round: 2 }),
+    /cites deferral round1#1 at another severity/,
+  );
+  reviewer.returns('pass', [{ ...finding('should-fix', 'Unrelated leak.'), deferral: 'round1#1' }]);
+  await assert.rejects(
+    runReview(root, task.task, { ...args, round: 2 }),
+    /cites deferral round1#1 but is not the deferred finding/,
+  );
+  reviewer.returns('pass', [
+    { ...finding('should-fix', 'Missing retry.'), deferral: 'round1#1' },
+    { ...finding('should-fix', 'Missing retry.'), deferral: 'round1#1' },
+  ]);
+  await assert.rejects(
+    runReview(root, task.task, { ...args, round: 2 }),
+    /cites one deferral for more than one finding/,
+  );
+  assert.equal(await hasReview(loadProject(root), task.task, fingerprint(root)), false);
+  reviewer.returns('pass', [{ ...finding('should-fix', 'Missing retry.'), deferral: 'round1#1' }]);
+  const second = await runReview(root, task.task, { ...args, round: 2 });
+  assert.equal(second.verdict, 'pass');
+  assert.deepEqual(second.deferrals, [
+    {
+      finding: 'round1#1',
+      approvedBy: 'Andranik',
+      reason: 'Moved to the retry task.',
+      severity: 'should-fix',
+      location: 'source.txt:1',
+      problem: 'Missing retry.',
+    },
+  ]);
+  assert.match(reviewer.prompt(), /DEFERRED FINDINGS[^]*"finding":"round1#1"/);
+  assert.equal(await hasReview(loadProject(root), task.task, fingerprint(root)), true);
+  assert.match(
+    readFileSync(join(workspace, 'ollama-review-round2.md'), 'utf8'),
+    /1\. should-fix \(deferred as round1#1\)[^]*## Deferred\n\n- round1#1, should-fix, approved by Andranik: Moved to the retry task\.\n$/,
+  );
+});
+
+test('a deferred blocking finding still blocks unless the user records an override', async (t) => {
+  const root = fixture(t);
+  const task = start(root);
+  const reviewer = scriptedReviewer(t);
+  writeFileSync(join(root, 'source.txt'), 'implementation change');
+  reviewer.returns('blocked', [finding('blocking', 'Data loss.')]);
+  const args = { author: 'codex', reviewer: 'ollama' };
+  await runReview(root, task.task, { ...args, round: 1 });
+  defer(root, task.task, [{ finding: 'round1#1', approvedBy: 'Andranik', reason: 'Later.' }]);
+  reviewer.returns('pass', [{ ...finding('blocking', 'Data loss.'), deferral: 'round1#1' }]);
+  await assert.rejects(
+    runReview(root, task.task, { ...args, round: 2 }),
+    /cites a deferral the user has not approved/,
+  );
+  assert.doesNotMatch(reviewer.prompt(), /DEFERRED FINDINGS/);
+  assert.equal(await hasReview(loadProject(root), task.task, fingerprint(root)), false);
+  defer(root, task.task, [
+    { finding: 'round1#1', approvedBy: 'Andranik', reason: 'Later.', override: true },
+  ]);
+  // An overridden blocking deferral covers only its own finding.
+  reviewer.returns('pass', [{ ...finding('blocking', 'Other crash.'), deferral: 'round1#1' }]);
+  await assert.rejects(
+    runReview(root, task.task, { ...args, round: 2 }),
+    /is not the deferred finding/,
+  );
+  reviewer.returns('pass', [{ ...finding('blocking', 'Data loss.'), deferral: 'round1#1' }]);
+  const second = await runReview(root, task.task, { ...args, round: 2 });
+  assert.equal(second.verdict, 'pass');
+  assert.equal(second.deferrals![0]!.override, true);
+  assert.equal(second.deferrals![0]!.severity, 'blocking');
+});
+
+test('deferrals must name a recorded finding and stay out of personal settings', async (t) => {
+  for (const deferral of [
+    { finding: 'round1', approvedBy: 'A', reason: 'r' },
+    { finding: 'round1#0', approvedBy: 'A', reason: 'r' },
+    { finding: 'round1#1', approvedBy: ' ', reason: 'r' },
+    { finding: 'round1#1', approvedBy: 'A', reason: 'r', override: false },
+    { finding: 'round1#1', approvedBy: 'A', reason: 'r', extra: 1 },
+  ]) {
+    assert.throws(
+      () => flowConfig({ reviewDeferrals: { 'docs/tasks/a.md': [deferral] } }),
+      /invalid task review deferral/,
+      JSON.stringify(deferral),
+    );
+  }
+  const twice = { finding: 'round1#1', approvedBy: 'A', reason: 'r' };
+  assert.throws(
+    () => flowConfig({ reviewDeferrals: { 'docs/tasks/a.md': [twice, twice] } }),
+    /invalid task review deferral/,
+  );
+  assert.throws(
+    () => personalSettings({ reviewDeferrals: { 'docs/tasks/a.md': [twice] } }),
+    /belong in project configuration/,
+  );
+  const root = fixture(t);
+  const task = start(root);
+  scriptedReviewer(t).returns('blocked', [finding('should-fix', 'Missing retry.')]);
+  writeFileSync(join(root, 'source.txt'), 'implementation change');
+  const args = { author: 'codex', reviewer: 'ollama' };
+  await runReview(root, task.task, { ...args, round: 1 });
+  defer(root, task.task, [{ finding: 'round1#2', approvedBy: 'A', reason: 'r' }]);
+  await assert.rejects(
+    runReview(root, task.task, { ...args, round: 2 }),
+    /deferral round1#2 names no recorded review finding/,
+  );
 });
 
 for (const harness of ['pi', 'codex', 'claude']) {

@@ -195,6 +195,11 @@ export function loadProject(cwd: string, proposed?: unknown): Project {
   });
   for (const key of ['gate', 'review'] as const) {
     if (config[key] === null) continue;
+    if (key === 'gate' && Array.isArray(config.gate) && Array.isArray(config.gate[0])) {
+      for (const step of config.gate) strings(step, 'gate step');
+      if (config.gate.some((step) => step.length === 0)) throw new Error('gate step is empty');
+      continue;
+    }
     strings(config[key], key);
     if (config[key].length === 0) throw new Error(`${key} command is empty`);
   }
@@ -215,6 +220,10 @@ export function loadProject(cwd: string, proposed?: unknown): Project {
   config.taskFiles = [...new Set([...config.taskFiles, `${config.workflow.taskDirectory}/**.md`])];
   return { root, config };
 }
+
+// A gate is one command or a list of steps run in order.
+export const gateSteps = (gate: string[] | string[][]) =>
+  (Array.isArray(gate[0]) ? gate : [gate]) as string[][];
 
 export function currentBranch(root: string) {
   try {

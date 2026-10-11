@@ -338,9 +338,35 @@ test('task commands share one private workspace per repository and task, owned f
     call('codex', 'apply_patch', {
       command: `*** Begin Patch\n*** Add File: ${join(started.workspace, 'codex-report.md')}\n+x\n*** Add File: source.txt\n+x\n*** End Patch`,
     }),
-    /mixes task workspace/,
+    /patch mixes task workspace and other files; send workspace files and repository files as separate patches$/,
   );
   assert.equal(existsSync(join(started.workspace, '.repo')), true);
+});
+
+test('a workspace ownership denial names the prefix to use and where the file is', async (t) => {
+  const root = fixture(t);
+  const started = startTask(root, { id: 'owner', title: 'Owner', author: 'codex' });
+  const write = (path: string) =>
+    handle('claude', {
+      cwd: root,
+      session_id: 'owner',
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Write',
+      tool_input: { file_path: path, content: 'x' },
+    });
+  assert.equal(
+    (await write(join(process.env.AGENT_WORKFLOW_WORKSPACE!, 'agent-workflow-fix-prompt.md')))
+      .reason,
+    'agent-workflow-fix-prompt.md in the agent workspace is not yours. Each file there has one writer, named by its prefix; write claude-agent-workflow-fix-prompt.md instead.',
+  );
+  assert.equal(
+    (await write(join(started.workspace, 'codex-report.md'))).reason,
+    'codex-report.md in the task workspace is not yours. Each file there has one writer, named by its prefix; write claude-report.md instead.',
+  );
+  assert.equal(
+    (await write(join(process.env.AGENT_WORKFLOW_WORKSPACE!, 'claude-fix-prompt.md'))).decision,
+    undefined,
+  );
 });
 
 test("a dangling outside alias cannot write another writer's workspace file", async (t) => {

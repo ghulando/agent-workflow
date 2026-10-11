@@ -14,7 +14,7 @@ With no configuration, the hooks protect `main` and `master` and find skills in 
 | `protectedBranches` | Branches where the agent may only read. |
 | `taskFiles` | Patterns that match task Markdown files. |
 | `doneMarker` | Completion text. Default `**Status:** done.`; bare text is placed after `**Status:**`. |
-| `gate` | Executable and argument array that runs every project check. |
+| `gate` | Executable and argument array that runs every project check, or a list of such arrays run in order as steps. |
 | `review` | Optional review wrapper, see [Review wrapper](#review-wrapper). |
 | `skillRoots` | Directories holding `<name>/SKILL.md`. |
 | `requiredSkills` | Skills whose full text is loaded at session start. |
@@ -37,6 +37,7 @@ An unknown key, an invalid value or unreadable state makes the guard deny rather
 | `reviewTimeout` | `900` seconds, from 1 to 3600 |
 | `reviewContext`, `reviewExclude` | Empty pattern lists |
 | `reviewExceptions` | Empty, see [Review exceptions](#review-exceptions) |
+| `reviewDeferrals` | Empty, see [Review deferrals](#review-deferrals) |
 
 List only reviewers you can run, because each one starts a CLI on your machine. An empty object for Claude or Codex uses that harness's default model. Ollama needs a model name.
 
@@ -79,6 +80,26 @@ A task gets two recorded review rounds. To allow more for one task, add an entry
 ```
 
 `maxRound` is 3 to 10 and `reason` cannot be empty. The reason is stored with every extra round.
+
+### Review deferrals
+
+When you decide that a review finding belongs to later work, record the decision so the next round does not hold the task open for it. Each recorded round numbers its findings in `<reviewer>-review-round<N>.md`, and a deferral names one as `round<N>#<position>`:
+
+```json
+{"workflow": {"reviewDeferrals": {"docs/tasks/login.md": [{"finding": "round1#2", "approvedBy": "Andranik", "reason": "Moved to the session-expiry task"}]}}}
+```
+
+The next round's reviewer is told the finding is deferred and, if it still applies, reports it with `"deferral": "round1#2"` and the same severity, location and problem. The runner refuses a citation that does not repeat the deferred finding exactly. A deferred finding does not block a pass, and the receipt and round summary list every deferral with its approver. A blocking finding is deferred only when the entry also has `"override": true`; without it, the runner warns and the finding stays open. Deferrals belong in project configuration because the guard asks you before an agent edits it. Personal settings reject them.
+
+## Gate steps
+
+A gate given as a list of commands runs them in order and stops at the first failure:
+
+```json
+{"gate": [["npm", "run", "format:check"], ["npm", "test"]]}
+```
+
+The full output of each run goes to its own `gate-<session key prefix>-<run>.log` in the task workspace of the current branch's task, or in `~/.agent-workflow/<repo>/` when the branch has no task. The runner prints one pass, fail or skip line per step, the last 40 lines of a failing step and the log path. A single command array works as one step.
 
 ## Read commands
 

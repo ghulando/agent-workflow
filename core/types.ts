@@ -77,6 +77,13 @@ export interface ReviewException {
   reason: string;
 }
 
+export interface ReviewDeferral {
+  finding: string;
+  approvedBy: string;
+  reason: string;
+  override?: boolean;
+}
+
 export interface FlowConfig {
   taskDirectory: string;
   baseBranch: string;
@@ -88,6 +95,7 @@ export interface FlowConfig {
   reviewExclude: string[];
   reviewContext: string[];
   reviewExceptions: Record<string, ReviewException>;
+  reviewDeferrals: Record<string, ReviewDeferral[]>;
 }
 
 export interface TypedReadCommand {
@@ -103,7 +111,7 @@ export interface ProjectConfig {
   protectedBranches: string[];
   taskFiles: string[];
   doneMarker: string;
-  gate: string[] | null;
+  gate: string[] | string[][] | null;
   review: string[] | null;
   skillRoots: string[];
   requiredSkills: string[];
@@ -200,6 +208,7 @@ export interface ReviewFinding {
   location: string;
   problem: string;
   suggestion: string;
+  deferral?: string;
 }
 
 export interface ReviewVerdict {
@@ -219,6 +228,7 @@ export interface ReviewRecord extends ReviewVerdict {
   tree: string;
   base: string;
   round: number;
+  deferrals?: (ReviewDeferral & Pick<ReviewFinding, 'severity' | 'location' | 'problem'>)[];
   report?: string;
 }
 
@@ -233,7 +243,7 @@ export interface RunningReview {
 export interface Receipt {
   tree: string;
   base?: string;
-  command?: string[];
+  command?: string[] | string[][];
   at?: string;
 }
 

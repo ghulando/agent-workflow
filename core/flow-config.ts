@@ -36,6 +36,7 @@ export function flowConfig(input: unknown = {}): FlowConfig {
     reviewExclude: [],
     reviewContext: [],
     reviewExceptions: {},
+    reviewDeferrals: {},
   };
   // shellApproval is accepted from older configurations; shell commands no longer ask.
   const { shellApproval, ...settings } = input as Record<string, unknown>;
@@ -110,6 +111,44 @@ export function flowConfig(input: unknown = {}): FlowConfig {
       throw new Error('invalid task review exception');
     }
   }
+  if (
+    !value.reviewDeferrals ||
+    typeof value.reviewDeferrals !== 'object' ||
+    Array.isArray(value.reviewDeferrals)
+  ) {
+    throw new Error('reviewDeferrals must be an object');
+  }
+  // Each entry is a user decision, so it lives in configuration the guard asks before editing.
+  for (const [task, deferrals] of Object.entries(value.reviewDeferrals)) {
+    if (
+      !task ||
+      task.startsWith('/') ||
+      task.split('/').some((part) => !part || part === '..') ||
+      /[\r\n\0]/.test(task) ||
+      !Array.isArray(deferrals) ||
+      deferrals.some(
+        (deferral) =>
+          !deferral ||
+          typeof deferral !== 'object' ||
+          Array.isArray(deferral) ||
+          Object.keys(deferral).some(
+            (key) => !['finding', 'approvedBy', 'reason', 'override'].includes(key),
+          ) ||
+          typeof deferral.finding !== 'string' ||
+          !/^round(?:[1-9]|10)#[1-9][0-9]*$/.test(deferral.finding) ||
+          ['approvedBy', 'reason'].some(
+            (key) =>
+              typeof deferral[key as 'approvedBy' | 'reason'] !== 'string' ||
+              !deferral[key as 'approvedBy' | 'reason'].trim() ||
+              /[\r\n\0]/.test(deferral[key as 'approvedBy' | 'reason']),
+          ) ||
+          (deferral.override !== undefined && deferral.override !== true),
+      ) ||
+      new Set(deferrals.map((deferral) => deferral.finding)).size !== deferrals.length
+    ) {
+      throw new Error('invalid task review deferral');
+    }
+  }
   if (!value.reviewers || typeof value.reviewers !== 'object' || Array.isArray(value.reviewers)) {
     throw new Error('reviewers must be an object');
   }
@@ -151,6 +190,15 @@ export function personalSettings(input: unknown) {
   const { readCommands = [], ...workflow } = input as Partial<FlowConfig> & {
     readCommands?: ReadCommand[];
   };
+  // The guard asks before project configuration edits but not before personal ones.
+  const { reviewDeferrals } = workflow;
+  if (
+    reviewDeferrals &&
+    typeof reviewDeferrals === 'object' &&
+    Object.keys(reviewDeferrals).length
+  ) {
+    throw new Error('reviewDeferrals belong in project configuration');
+  }
   flowConfig(workflow);
   return { workflow, readCommands };
 }
