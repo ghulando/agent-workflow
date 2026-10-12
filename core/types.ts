@@ -68,6 +68,7 @@ export interface RetroEvents {
 export type Reviewer = 'claude' | 'codex' | 'ollama';
 
 export interface ReviewerSettings {
+  reviewer?: string | undefined;
   model?: string | undefined;
   transport?: 'cli' | 'pi' | undefined;
 }

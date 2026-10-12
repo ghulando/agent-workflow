@@ -133,7 +133,7 @@ export function proposeSetup(cwd: string) {
     unresolved: [
       'Review project conventions and relevant skills; detection does not prescribe frameworks.',
       'Confirm a full gate command, including all workspace components and required services.',
-      'Configure available independent reviewers and model preferences.',
+      'Configure available independent reviewers and model preferences, and optionally assign each author a reviewer with an entry keyed by the author, such as "claude": {"reviewer": "codex"}; a same-harness reviewer needs an explicit model and reviews only headless. Every review round after the first uses the reviewer of the round before it.',
       'Confirm protected branches, branch naming, and task directory.',
     ],
     instruction:

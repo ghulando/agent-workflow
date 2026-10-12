@@ -63,6 +63,26 @@ The reviewer must come from a different harness than the author:
 
 Run `doctor --author codex` to check this before you start. Two harnesses can run the same model family, so a different harness does not guarantee a different model. `requireReview: false` drops the review requirement, but the gate still has to pass.
 
+Without further settings the author picks one of its eligible reviewers. To decide it yourself, key an entry by the author and name its reviewer:
+
+```json
+{
+  "workflow": {
+    "reviewers": {
+      "claude": {"reviewer": "claude", "model": "opus"},
+      "codex": {"reviewer": "ollama", "model": "your-installed-model", "transport": "pi"},
+      "pi": {"reviewer": "codex"}
+    }
+  }
+}
+```
+
+Claude's work is then reviewed by a headless Claude on Opus, Codex's by Ollama through Pi, and Pi's by Codex on its default model. The runner refuses any other reviewer for that author, and session context prints the review command with the reviewer filled in. An author without such an entry chooses among the entries that have no `reviewer`, as above. A repo entry replaces a personal entry with the same key.
+
+An author may review its own work only with an explicit `model`, and only in a solo run, because the headless reviewer has no tools and its verdict comes from its output. The workflow cannot see which model the author's session runs, so a same-harness review is only as independent as the two models you choose. Team runs ignore these entries: the lead picks the pane reviewer, which is never the author.
+
+Every round after the first must use the reviewer of the round before it.
+
 With `transport: "pi"`, Ollama runs through Pi with tools, extensions, skills and context discovery turned off. `reviewContext` adds unchanged files the reviewer needs to understand the change. `reviewExclude` keeps generated files out of what the reviewer sees but leaves them in the tree fingerprint, so the reviewer never approves a file it did not read.
 
 ### Review wrapper

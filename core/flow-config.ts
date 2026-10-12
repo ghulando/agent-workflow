@@ -11,8 +11,26 @@ export const reviewerChoices: Record<string, string[]> = {
   claude: ['ollama', 'codex'],
 };
 
-export const eligibleReviewers = (workflow: FlowConfig, author: string) =>
-  (reviewerChoices[author] ?? []).filter((name) => Object.hasOwn(workflow.reviewers, name));
+export const assignment = (workflow: FlowConfig, author: string) =>
+  Object.hasOwn(workflow.reviewers, author) && workflow.reviewers[author]!.reviewer !== undefined
+    ? workflow.reviewers[author]!
+    : null;
+
+// An assigned author has exactly one reviewer; others choose among unassigned providers.
+export const eligibleReviewers = (workflow: FlowConfig, author: string) => {
+  const assigned = assignment(workflow, author);
+  if (assigned) return [assigned.reviewer!];
+  return (reviewerChoices[author] ?? []).filter(
+    (name) =>
+      Object.hasOwn(workflow.reviewers, name) && workflow.reviewers[name]!.reviewer === undefined,
+  );
+};
+
+export function reviewerSettings(workflow: FlowConfig, author: string, reviewer: string) {
+  if (!eligibleReviewers(workflow, author).includes(reviewer)) return null;
+  const { model, transport } = assignment(workflow, author) ?? workflow.reviewers[reviewer]!;
+  return { model, transport };
+}
 
 export const personalRoot = () =>
   resolve(process.env.AGENT_WORKFLOW_HOME || resolve(homedir(), '.config/agent-workflow'));
@@ -152,18 +170,34 @@ export function flowConfig(input: unknown = {}): FlowConfig {
   if (!value.reviewers || typeof value.reviewers !== 'object' || Array.isArray(value.reviewers)) {
     throw new Error('reviewers must be an object');
   }
-  for (const [name, settings] of Object.entries(value.reviewers)) {
-    if (
-      !['claude', 'codex', 'ollama'].includes(name) ||
-      !settings ||
-      typeof settings !== 'object' ||
-      Array.isArray(settings)
-    ) {
+  for (const [key, settings] of Object.entries(value.reviewers)) {
+    if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+      throw new Error('invalid reviewer');
+    }
+    // An entry with `reviewer` is keyed by author and assigns that author's reviewer.
+    const assigned = settings.reviewer !== undefined;
+    const name = assigned ? settings.reviewer! : key;
+    if (assigned) {
+      if (!authors.includes(key)) throw new Error(`reviewer assignment for unknown author ${key}`);
+      if (typeof name !== 'string' || !['claude', 'codex', 'ollama'].includes(name)) {
+        throw new Error(`invalid reviewer for author ${key}`);
+      }
+      if (name === key ? !settings.model : !reviewerChoices[key]!.includes(name)) {
+        throw new Error(
+          name === key
+            ? `${key} reviewing its own work requires an explicit model`
+            : `${name} cannot review work by ${key}`,
+        );
+      }
+    } else if (!['claude', 'codex', 'ollama'].includes(key)) {
       throw new Error('invalid reviewer');
     }
     if (
       Object.keys(settings).some(
-        (key) => key !== 'model' && !(name === 'ollama' && key === 'transport'),
+        (field) =>
+          field !== 'model' &&
+          !(assigned && field === 'reviewer') &&
+          !(name === 'ollama' && field === 'transport'),
       ) ||
       (settings.model !== undefined &&
         (typeof settings.model !== 'string' ||

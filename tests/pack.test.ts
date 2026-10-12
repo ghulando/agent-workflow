@@ -21,7 +21,12 @@ import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import test from 'node:test';
 import { loadProject, git } from '../core/project.ts';
-import { flowConfig, personalSettings, reviewerChoices } from '../core/flow-config.ts';
+import {
+  eligibleReviewers,
+  flowConfig,
+  personalSettings,
+  reviewerChoices,
+} from '../core/flow-config.ts';
 import { startTask, resumeTask, handoffTask, readTask, taskWorkspace } from '../core/tasks.ts';
 import { proposeSetup, applySetup } from '../core/setup.ts';
 import { installPersonal, personalInstallPlan } from '../core/personal-install.ts';
@@ -567,6 +572,149 @@ test('a re-review receives the preceding findings and the first review does not'
   assert.match(second, /This is a re-review\. Round 1 by claude/);
   assert.match(second, /PREVIOUS FINDINGS \[\{"severity":"blocking","location":"source\.txt:1"/);
   assert.match(second, /"Follow-up:"/);
+});
+
+test('an assigned reviewer is the only one accepted and its model reaches the command', async (t) => {
+  const root = fixture(t, {
+    reviewers: { codex: { reviewer: 'claude', model: 'opus' }, ollama: { model: 'test-model' } },
+  });
+  const workflow = loadProject(root).config.workflow;
+  assert.deepEqual(eligibleReviewers(workflow, 'codex'), ['claude']);
+  // Unassigned authors choose only among entries without an assignment.
+  assert.deepEqual(eligibleReviewers(workflow, 'claude'), ['ollama']);
+  assert.deepEqual(eligibleReviewers(workflow, 'pi'), []);
+  const task = start(root);
+  const log = fakeReviewers(t);
+  writeFileSync(join(root, 'source.txt'), 'implementation change');
+  for (const reviewer of ['ollama', 'codex']) {
+    await assert.rejects(
+      runReview(root, task.task, { author: 'codex', reviewer, round: 1 }),
+      /claude is the configured reviewer for codex/,
+    );
+  }
+  const result = await runReview(root, task.task, {
+    author: 'codex',
+    reviewer: 'claude',
+    round: 1,
+  });
+  assert.equal(result.requestedModel, 'opus');
+  const { args } = JSON.parse(readFileSync(log, 'utf8')) as { args: string[] };
+  assert.equal(args[args.indexOf('--model') + 1], 'opus');
+  assert.match(
+    readFileSync(join(task.workspace, 'claude-review-round1.md'), 'utf8'),
+    /Author: codex\. Model: opus\./,
+  );
+});
+
+test('a same-harness reviewer needs an explicit model and never reviews in a pane', async (t) => {
+  assert.throws(
+    () => flowConfig({ reviewers: { claude: { reviewer: 'claude' } } }),
+    /claude reviewing its own work requires an explicit model/,
+  );
+  const root = fixture(t, { reviewers: { claude: { reviewer: 'claude', model: 'opus' } } });
+  const task = start(root, 'claude');
+  const log = fakeReviewers(t);
+  writeFileSync(join(root, 'source.txt'), 'implementation change');
+  const gateSession = sessionKey(root, 'claude', 'review-test');
+  await runGate(root, gateSession);
+  await assert.rejects(
+    rawReview(root, task.task, {
+      author: 'claude',
+      reviewer: 'claude',
+      round: 1,
+      gateSession,
+      pane: true,
+    }),
+    /is not independent of author claude/,
+  );
+  const result = await runReview(root, task.task, {
+    author: 'claude',
+    reviewer: 'claude',
+    round: 1,
+  });
+  assert.equal(result.verdict, 'pass');
+  const { name, args } = JSON.parse(readFileSync(log, 'utf8')) as { name: string; args: string[] };
+  assert.equal(name, 'claude');
+  assert.equal(args[args.indexOf('--model') + 1], 'opus');
+});
+
+test('a re-review must use the reviewer of the preceding round', async (t) => {
+  const root = fixture(t);
+  const task = start(root);
+  fakeReviewers(t, 'blocked');
+  writeFileSync(join(root, 'source.txt'), 'implementation change');
+  await runReview(root, task.task, { author: 'codex', reviewer: 'claude', round: 1 });
+  await assert.rejects(
+    runReview(root, task.task, { author: 'codex', reviewer: 'ollama', round: 2 }),
+    /round 1 was reviewed by claude; re-review with the same reviewer/,
+  );
+  const second = await runReview(root, task.task, {
+    author: 'codex',
+    reviewer: 'claude',
+    round: 2,
+  });
+  assert.equal(second.reviewer, 'claude');
+  const paneRoot = fixture(t);
+  const paneTask = start(paneRoot);
+  const paneSession = sessionKey(paneRoot, 'codex', 'review-test');
+  await runGate(paneRoot, paneSession);
+  writeFileSync(
+    join(paneTask.workspace, 'pi-verdict-round1.json'),
+    JSON.stringify({
+      verdict: 'blocked',
+      standards: 'Checked project rules and concrete source.',
+      spec: 'Checked the stated acceptance criteria.',
+      findings: [
+        { severity: 'blocking', location: 'source.txt:1', problem: 'Wrong', suggestion: 'Fix' },
+      ],
+    }),
+  );
+  const pane = (reviewer: string, round: number) =>
+    rawReview(paneRoot, paneTask.task, {
+      author: 'codex',
+      reviewer,
+      round,
+      gateSession: paneSession,
+      pane: true,
+    });
+  await pane('pi', 1);
+  await assert.rejects(pane('claude', 2), /round 1 was reviewed by pi/);
+});
+
+test('reviewer assignments are validated and a project assignment replaces a personal one', (t) => {
+  const bad: [unknown, RegExp][] = [
+    [{ ollama: { reviewer: 'claude' } }, /reviewer assignment for unknown author ollama/],
+    [{ claude: { reviewer: 'pi' } }, /invalid reviewer for author claude/],
+    [{ pi: { reviewer: 'ollama', model: 'm' } }, /ollama cannot review work by pi/],
+    [{ claude: { reviewer: 'codex', transport: 'pi' } }, /invalid codex reviewer settings/],
+    [{ claude: { reviewer: 'codex', command: 'evil' } }, /invalid codex reviewer settings/],
+    [{ codex: { reviewer: 'ollama' } }, /Ollama requires an explicit model/],
+  ];
+  for (const [reviewers, error] of bad) {
+    assert.throws(() => flowConfig({ reviewers }), error);
+  }
+  flowConfig({ reviewers: { codex: { reviewer: 'ollama', model: 'm', transport: 'pi' } } });
+  const home = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-personal-')));
+  const previous = process.env.AGENT_WORKFLOW_HOME;
+  t.after(() => {
+    if (previous === undefined) {
+      delete process.env.AGENT_WORKFLOW_HOME;
+    } else {
+      process.env.AGENT_WORKFLOW_HOME = previous;
+    }
+    rmSync(home, { recursive: true, force: true });
+  });
+  process.env.AGENT_WORKFLOW_HOME = home;
+  writeFileSync(
+    join(home, 'personal.json'),
+    JSON.stringify({
+      reviewers: { claude: { reviewer: 'codex' }, pi: { reviewer: 'codex' } },
+    }),
+  );
+  const root = fixture(t, { reviewers: { claude: { reviewer: 'ollama', model: 'm' } } });
+  const workflow = loadProject(root).config.workflow;
+  assert.deepEqual(eligibleReviewers(workflow, 'claude'), ['ollama']);
+  assert.deepEqual(eligibleReviewers(workflow, 'pi'), ['codex']);
 });
 
 test('a pane review records only the independent reviewer own verdict file', async (t) => {

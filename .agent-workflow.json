@@ -22,10 +22,6 @@
       }
     },
     "reviewExceptions": {
-      "docs/tasks/legate-phase15-retro.md": {
-        "maxRound": 3,
-        "reason": "Round 2 findings fixed; user authorized a third round"
-      }
     }
   }
 }

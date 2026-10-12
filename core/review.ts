@@ -20,7 +20,7 @@ import {
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { reviewerChoices } from './flow-config.ts';
+import { assignment, reviewerChoices, reviewerSettings } from './flow-config.ts';
 import { skills } from './context.ts';
 import { currentBranch, git, loadProject, matches, projectPath } from './project.ts';
 import { readTask, taskWorkspace } from './tasks.ts';
@@ -398,11 +398,18 @@ export async function runReview(
   const project = loadProject(cwd);
   const task = readTask(project, path);
   const { root, config } = project;
+  const assigned = assignment(config.workflow, author)?.reviewer;
+  if (!pane && assigned && reviewer !== assigned) {
+    throw new Error(
+      `${assigned} is the configured reviewer for ${author}; use --reviewer ${assigned}`,
+    );
+  }
   // A pane reviewer is a live team harness; its verdict file is its own team file.
+  // Only a headless reviewer, whose verdict comes from its output, may share the author's harness.
   if (
     pane
       ? !['pi', 'codex', 'claude'].includes(reviewer) || reviewer === author
-      : !reviewerChoices[author]?.includes(reviewer)
+      : !reviewerChoices[author]?.includes(reviewer) && reviewer !== assigned
   ) {
     throw new Error(`reviewer ${reviewer} is not independent of author ${author}`);
   }
@@ -418,7 +425,7 @@ export async function runReview(
   if (!Number.isInteger(round) || round < 1 || round > (exception?.maxRound ?? 2)) {
     throw new Error('review round exceeds the configured task limit');
   }
-  const settings = config.workflow.reviewers[reviewer];
+  const settings = reviewerSettings(config.workflow, author, reviewer);
   if (!pane && !settings) {
     throw new Error(`${reviewer} is not configured; select and configure a reviewer explicitly`);
   }
@@ -452,6 +459,11 @@ export async function runReview(
         : round === 3
           ? state.second
           : state.extraReviews?.find((record) => record.round === round - 1);
+    if (preceding && preceding.reviewer !== reviewer) {
+      throw new Error(
+        `round ${preceding.round} was reviewed by ${preceding.reviewer}; re-review with the same reviewer`,
+      );
+    }
     if (round > 2) {
       if (!preceding) throw new Error('run the preceding review round first');
       if (state.extraReviews?.some((record) => record.round === round)) {
@@ -573,7 +585,7 @@ export async function runReview(
     const summary = join(workspace, `.${run}.tmp`);
     writeFileSync(
       summary,
-      `# Review round ${round} by ${reviewer}\n\nVerdict: ${verdict.verdict}. Author: ${author}. Tree: ${before}.\n\n## Standards\n\n${verdict.standards}\n\n## Spec\n\n${verdict.spec}\n\n## Findings\n\n${findings}\n${deferredNotes}`,
+      `# Review round ${round} by ${reviewer}\n\nVerdict: ${verdict.verdict}. Author: ${author}. Model: ${record.model}. Tree: ${before}.\n\n## Standards\n\n${verdict.standards}\n\n## Spec\n\n${verdict.spec}\n\n## Findings\n\n${findings}\n${deferredNotes}`,
       { mode: 0o600, flag: 'wx' },
     );
     renameSync(summary, join(workspace, `${reviewer}-review-round${round}.md`));

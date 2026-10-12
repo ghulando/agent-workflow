@@ -51,7 +51,7 @@ import { hasReview } from './review.ts';
 import { evaluatePolicy } from './policy.ts';
 import { parseCommand } from './cli.ts';
 import { readTask, taskWorkspace } from './tasks.ts';
-import { workspaceRoot } from './flow-config.ts';
+import { assignment, workspaceRoot } from './flow-config.ts';
 import { packageDigest } from './package.ts';
 import { claimsDone, completionStatus } from './status.ts';
 
@@ -69,10 +69,11 @@ export function gateCommand(key: string) {
 
 // The runner's location differs per harness install, so each session names its own.
 export function reviewCall(key: string, harness: string, config: ProjectConfig) {
+  const reviewer = assignment(config.workflow, harness)?.reviewer ?? '<reviewer>';
   if (config.review) {
-    return `REVIEW_GATE_SESSION=${key} AGENT_WORKFLOW_RUNNER=${quote(runnerPath())} ${quote(config.review[0]!)} <task-file> ${harness} <reviewer> [round]`;
+    return `REVIEW_GATE_SESSION=${key} AGENT_WORKFLOW_RUNNER=${quote(runnerPath())} ${quote(config.review[0]!)} <task-file> ${harness} ${reviewer} [round]`;
   }
-  return `node ${quote(runnerPath())} review <task-file> --author ${harness} --reviewer <reviewer> --round <n> --gate-session ${key}`;
+  return `node ${quote(runnerPath())} review <task-file> --author ${harness} --reviewer ${reviewer} --round <n> --gate-session ${key}`;
 }
 
 function runnerCall(action: Action, root: string) {

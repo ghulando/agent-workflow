@@ -40,6 +40,6 @@ The guard keeps a small set of rules. On a protected branch (`main` and `master`
 
 The gate is the command in `.agent-workflow.json`. Run it exactly as the session context prints it. It prints a line per step and the tail of a failing step, and keeps the full output in a log file it names. A pass records a receipt for that exact tree. The receipt is lost when the tree changes.
 
-The review runner sends the task and diff to a reviewer from another harness, with no tools. A passing review records a completion receipt for the tree. Each task allows two rounds unless `reviewExceptions` raises the limit for that task.
+The review runner sends the task and diff to a reviewer with no tools, from another harness unless [configuration](configuration.md) assigns the author's own harness with an explicit model for solo review. Every round after the first uses the reviewer of the round before it. A passing review records a completion receipt for the tree. Each task allows two rounds unless `reviewExceptions` raises the limit for that task.
 
 The task is marked done by a separate edit that changes only its status line. The guard allows that edit only when both a gate receipt and a review receipt match the current tree. Commit, merge, push and publish always wait for your explicit yes.

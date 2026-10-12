@@ -1322,6 +1322,20 @@ test('startup context prints the session review command only when review is requ
   );
 });
 
+test('startup context names the reviewer assigned to the session harness', async (t) => {
+  const root = realpathSync(
+    fixture(t, { workflow: { requireReview: true, reviewers: { claude: { reviewer: 'codex' } } } }),
+  );
+  assert.match(
+    (await call(root, 'claude', 'SessionStart')).context!,
+    /review <task-file> --author claude --reviewer codex --round <n>/,
+  );
+  assert.match(
+    (await call(root, 'codex', 'SessionStart')).context!,
+    /No configured independent reviewer for codex/,
+  );
+});
+
 test('a review wrapper on a protected branch is recognised only with the session runner', async (t) => {
   const root = realpathSync(
     fixture(t, {
