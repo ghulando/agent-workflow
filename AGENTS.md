@@ -2,7 +2,9 @@
 
 Shared development workflow for Pi, Codex and Claude Code. Generic engine,
 native adapters and adapted skills belong here. Application stack rules belong
-in consuming repositories. Read UPSTREAM.md before changing adapted skills.
+in consuming repositories; the only exception is the stack records in stacks/,
+which flow-bootstrap reads and npm pack never ships. The engine and skills name
+no stack. Read UPSTREAM.md before changing adapted skills.
 
 Work on feature or fix branches. Preserve dirty work. Never commit, push or
 publish without explicit user approval. Do not enable hook trust automatically.

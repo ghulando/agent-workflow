@@ -156,6 +156,7 @@ const READ_VERBS = [
   'review-status',
   'doctor',
   'setup',
+  'bootstrap',
   'install-plan',
   'history-plan',
   'history-digest',

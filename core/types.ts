@@ -97,6 +97,7 @@ export interface FlowConfig {
   reviewContext: string[];
   reviewExceptions: Record<string, ReviewException>;
   reviewDeferrals: Record<string, ReviewDeferral[]>;
+  stacks: string | null;
 }
 
 export interface TypedReadCommand {
@@ -106,6 +107,13 @@ export interface TypedReadCommand {
 }
 
 export type ReadCommand = string[] | TypedReadCommand;
+
+export interface StackStamp {
+  name: string;
+  commit: string | null;
+  modified: boolean;
+  gate: string[][];
+}
 
 export interface ProjectConfig {
   version?: number;
@@ -119,6 +127,7 @@ export interface ProjectConfig {
   readCommands: ReadCommand[];
   readOnlyTools: string[];
   extensions: string[];
+  stack: StackStamp | null;
   workflow: FlowConfig;
 }
 

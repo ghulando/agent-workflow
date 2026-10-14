@@ -21,6 +21,7 @@ With no configuration, the hooks protect `main` and `master` and find skills in 
 | `readCommands` | Commands trusted as reads on protected branches and in plan mode. |
 | `readOnlyTools` | Host tool names or `*` patterns that never change project files. MCP tools (`mcp__*`) stay under the host's own permissions. |
 | `extensions` | Repository JavaScript modules exporting `pre`, `post` or both. |
+| `stack` | Written by `bootstrap-apply`: the stack record name, the stacks commit, whether the record differed from it, and the stack gate that `setup` proposes while no gate is set. See [Stack records](stacks.md). |
 | `workflow` | Task, branch and review preferences. |
 
 An unknown key, an invalid value or unreadable state makes the guard deny rather than guess. In patterns, `*` matches within one path segment and `**` across segments. File-tool edits to Git metadata, workflow and harness configuration, and the configured gate, review and extension files ask you first.
@@ -38,6 +39,7 @@ An unknown key, an invalid value or unreadable state makes the guard deny rather
 | `reviewContext`, `reviewExclude` | Empty pattern lists |
 | `reviewExceptions` | Empty, see [Review exceptions](#review-exceptions) |
 | `reviewDeferrals` | Empty, see [Review deferrals](#review-deferrals) |
+| `stacks` | `null`. An absolute or `~/` path to a local clone of your [stack records](stacks.md) |
 
 List only reviewers you can run, because each one starts a CLI on your machine. An empty object for Claude or Codex uses that harness's default model. Ollama needs a model name.
 

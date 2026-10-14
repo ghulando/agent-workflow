@@ -29,6 +29,6 @@ A passing recorded review, including round 1, supplies the review receipt for co
 
 Show what changed, why, and verification evidence. Before asking to commit, offer a [flow-retro](../flow-retro/SKILL.md) and run it only on the user's yes. Commit, merge, push, publish, deploy and external ticket/chat updates require explicit authorization. An implementation plan is not shipping approval. Never approve your own workflow request.
 
-New repos use [flow-setup](../flow-setup/SKILL.md). Plan/review sessions are read-only; exit native plan mode (Pi: /plan) before implementation or running checks.
+New repos use [flow-bootstrap](../flow-bootstrap/SKILL.md) for stack rules and skills, then [flow-setup](../flow-setup/SKILL.md). Use flow-bootstrap too when an existing repository lacks stack skills. Plan/review sessions are read-only; exit native plan mode (Pi: /plan) before implementation or running checks.
 
 Adapted from Pstack poteto-mode and Matt Pocock implement. See ../../UPSTREAM.md for pinned sources and licenses.

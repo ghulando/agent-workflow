@@ -5,7 +5,7 @@ How to use the workflow, from install to merge. VS Code draws the diagram in the
 ```mermaid
 flowchart TD
     install["Install the plugin, restart sessions, approve hook trust"] --> configured{"Repo has .agent-workflow.json?"}
-    configured -- no --> setup["Run flow-setup: set gate and reviewers, commit .agent-workflow.json"]
+    configured -- no --> setup["Run flow-bootstrap for stack rules and skills, then flow-setup: set gate and reviewers, commit .agent-workflow.json"]
     setup --> ask
     configured -- yes --> ask["Describe the task, or call /workflow with it"]
 

@@ -7,6 +7,8 @@ const commandSpecs: Record<string, { count: number; options?: string[]; required
   'install-user': { count: 0, options: ['apply', 'repair'] },
   setup: { count: 1 },
   'setup-apply': { count: 2 },
+  bootstrap: { count: 1 },
+  'bootstrap-apply': { count: 2 },
   'task-start': { count: 2, options: ['author', 'fix', 'small'], required: ['author'] },
   'task-resume': { count: 1 },
   'task-handoff': { count: 1, options: ['author'], required: ['author'] },

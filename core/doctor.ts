@@ -6,6 +6,7 @@ import { authors, eligibleReviewers, personalRoot } from './flow-config.ts';
 import { currentBranch, loadProject } from './project.ts';
 import { packageStatus } from './package.ts';
 import { pluginRoot } from './runtime.ts';
+import { stacksDirectory } from './bootstrap.ts';
 
 export function doctor(cwd: string, author?: string) {
   if (author !== undefined && !authors.includes(author)) {
@@ -24,6 +25,10 @@ export function doctor(cwd: string, author?: string) {
     if (!wrapper?.isFile() || !(wrapper.mode & 0o111)) {
       issues.push(`Review wrapper ${config.review[0]} is missing or not executable.`);
     }
+  }
+  const stacks = stacksDirectory(config.workflow);
+  if (stacks && !(existsSync(stacks) && statSync(stacks).isDirectory())) {
+    issues.push(`Stacks directory ${stacks} is missing or not a directory.`);
   }
   if (config.workflow.requireReview) {
     for (const [name, providers] of Object.entries(reviewers)) {

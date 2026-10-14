@@ -55,6 +55,7 @@ export function flowConfig(input: unknown = {}): FlowConfig {
     reviewContext: [],
     reviewExceptions: {},
     reviewDeferrals: {},
+    stacks: null,
   };
   // shellApproval is accepted from older configurations; shell commands no longer ask.
   const { shellApproval, ...settings } = input as Record<string, unknown>;
@@ -82,6 +83,15 @@ export function flowConfig(input: unknown = {}): FlowConfig {
     throw new Error('taskDirectory must be a relative directory');
   }
   if (typeof value.requireReview !== 'boolean') throw new Error('requireReview must be boolean');
+  // A home-relative path lets teammates share one project setting.
+  if (
+    value.stacks !== null &&
+    (typeof value.stacks !== 'string' ||
+      !(value.stacks.startsWith('/') || value.stacks.startsWith('~/')) ||
+      /[\r\n\0]/.test(value.stacks))
+  ) {
+    throw new Error('stacks must be an absolute or ~/ directory path');
+  }
   for (const key of ['reviewExclude', 'reviewContext'] as const) {
     if (
       !Array.isArray(value[key]) ||

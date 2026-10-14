@@ -22,6 +22,10 @@
       }
     },
     "reviewExceptions": {
+      "docs/tasks/flow-bootstrap.md": {
+        "maxRound": 5,
+        "reason": "The user reopened the task after round 3 to move the stack records into stacks/; round 4 found a path bug in that setup"
+      }
     }
   }
 }

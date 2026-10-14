@@ -14,7 +14,7 @@ Use one agent for most work: docs, one-file fixes, small features.
 6. The agent shows the diff and offers a retro. On your yes, `flow-retro` reads the task's workflow events, grills you on each finding and appends the result to `~/.agent-workflow/<harness>-retro-log.md`. A finding seen in two or more retros is marked actionable.
 7. The agent asks before committing. Merge and push each need a separate yes.
 
-Skills you call yourself: `flow-setup` once per new repository, `flow-debug` for a bug or slowdown, `flow-handoff` to move a task to another tool, `flow-retro` to review a finished task, and `clean-history` to prune session history. `clean-history` deletes task workspaces and transcripts, so run a pending retro first; the retro logs themselves survive it. The `workflow` skill loads `flow-spec`, `flow-understand`, `flow-design`, `flow-implement`, `flow-test`, `flow-verify` and `flow-review` when a step needs them. The [flow diagram](flow.md) shows the steps.
+Skills you call yourself: `flow-bootstrap` to give a new repository its stack rules and skills from your [stack records](stacks.md), `flow-setup` once per new repository, `flow-debug` for a bug or slowdown, `flow-handoff` to move a task to another tool, `flow-retro` to review a finished task, and `clean-history` to prune session history. `clean-history` deletes task workspaces and transcripts, so run a pending retro first; the retro logs themselves survive it. The `workflow` skill loads `flow-spec`, `flow-understand`, `flow-design`, `flow-implement`, `flow-test`, `flow-verify` and `flow-review` when a step needs them. The [flow diagram](flow.md) shows the steps.
 
 ## Team
 

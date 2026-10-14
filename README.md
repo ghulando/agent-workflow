@@ -75,7 +75,7 @@ Start a new session to check the install. A working install shows "Agent workflo
 
 ### Enable it in a project
 
-Run `flow-setup` in the project. The [flow diagram](docs/flow.md) shows the whole process. [Usage](docs/usage.md) explains solo runs, Herdr team runs and what the engine enforces.
+Run `flow-bootstrap` in a new project to write its stack rules and skills from your [stack records](docs/stacks.md), then `flow-setup`. The [flow diagram](docs/flow.md) shows the whole process. [Usage](docs/usage.md) explains solo runs, Herdr team runs and what the engine enforces.
 
 ## Update
 

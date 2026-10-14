@@ -11,6 +11,8 @@ const help = `agent-workflow commands:
   install-user --apply             Apply the personal installation
   setup <repo>                     Print a read-only setup proposal as JSON
   setup-apply <repo> <proposal>     Apply a reviewed, current proposal
+  bootstrap <repo>                 Print stack records and repo state as JSON
+  bootstrap-apply <repo> <plan>     Apply a confirmed, current bootstrap plan
   task-start <id> <title> --author pi|codex|claude [--fix] [--small]
   task-resume <task-file>           Read portable task and current worktree
   task-handoff <task-file> --author pi|codex|claude
@@ -89,6 +91,16 @@ try {
       case 'setup-apply': {
         const { applySetup } = await import('../core/setup.ts');
         print(applySetup(positional[0]!, positional[1]!));
+        break;
+      }
+      case 'bootstrap': {
+        const { bootstrapReport } = await import('../core/bootstrap.ts');
+        print(bootstrapReport(positional[0]!));
+        break;
+      }
+      case 'bootstrap-apply': {
+        const { applyBootstrap } = await import('../core/bootstrap.ts');
+        print(applyBootstrap(positional[0]!, positional[1]!));
         break;
       }
       case 'doctor': {

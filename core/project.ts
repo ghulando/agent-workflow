@@ -120,6 +120,7 @@ export function loadProject(cwd: string, proposed?: unknown): Project {
     'readOnlyTools',
     'extensions',
     'review',
+    'stack',
     'workflow',
   ];
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
@@ -145,6 +146,7 @@ export function loadProject(cwd: string, proposed?: unknown): Project {
     readOnlyTools: [],
     extensions: [],
     review: null,
+    stack: null,
     ...input,
   } as ProjectConfig;
   for (const key of [
@@ -202,6 +204,25 @@ export function loadProject(cwd: string, proposed?: unknown): Project {
     }
     strings(config[key], key);
     if (config[key].length === 0) throw new Error(`${key} command is empty`);
+  }
+  if (config.stack !== null) {
+    const { stack } = config;
+    if (
+      !stack ||
+      typeof stack !== 'object' ||
+      Array.isArray(stack) ||
+      Object.keys(stack).some((key) => !['name', 'commit', 'modified', 'gate'].includes(key)) ||
+      typeof stack.name !== 'string' ||
+      !/^[a-z0-9][a-z0-9-]*$/.test(stack.name) ||
+      (stack.commit !== null &&
+        (typeof stack.commit !== 'string' || !/^[0-9a-f]{7,64}$/.test(stack.commit))) ||
+      typeof stack.modified !== 'boolean' ||
+      !Array.isArray(stack.gate)
+    ) {
+      throw new Error('invalid stack entry');
+    }
+    for (const step of stack.gate) strings(step, 'stack gate step');
+    if (stack.gate.some((step) => step.length === 0)) throw new Error('stack gate step is empty');
   }
   const local = config.workflow ?? {};
   if (

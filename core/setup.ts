@@ -124,9 +124,10 @@ export function proposeSetup(cwd: string) {
     projects,
     config: {
       version: 1,
-      gate: null,
       requiredSkills: [],
       ...existing,
+      // A bootstrapped repo proposes its recorded stack gate until a gate is chosen.
+      gate: existing.gate ?? (existing.stack?.gate.length ? existing.stack.gate : null),
       // Personal defaults stay personal; only repo-owned settings are proposed.
       workflow: { baseBranch, ...existing.workflow },
     },
