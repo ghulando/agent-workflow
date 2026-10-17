@@ -38,3 +38,27 @@ flowchart TD
     build -. "switch harness" .-> handoff["flow-handoff, then task-resume in the new tool"]
     handoff -.-> build
 ```
+
+## New service
+
+Starting a service from an empty folder adds steps before the flow above. Bootstrap and setup write configuration only, so the gate cannot pass until the first task scaffolds the service.
+
+```mermaid
+flowchart TD
+    init["Create the folder, git init, empty first commit on main"] --> branch["Switch to a working branch; the guard refuses bootstrap writes on protected branches"]
+    branch --> stacks{"stacks set in personal config?"}
+    stacks -- no --> setstacks["Set stacks to your records checkout, restart the session"]
+    setstacks --> investigate
+    stacks -- yes --> investigate["Optional: agent investigates the requirement and neighbouring services, writes findings and open questions"]
+    investigate --> choose["You pick the stack"]
+    choose --> record{"Record exists?"}
+    record -- no --> newrec["flow-bootstrap asks the new-stack questions and writes the record; you commit it in the stacks checkout"]
+    newrec --> bootstrap
+    record -- yes --> bootstrap["flow-bootstrap: answer the open choices; writes the AGENTS.md stack section, CLAUDE.md, skills and stack entry"]
+    bootstrap --> setup["flow-setup: review the proposed gate and reviewers, then apply them"]
+    setup --> commit["You review and commit the configuration, then fast-forward main"]
+    commit --> scaffold["First task: /workflow scaffold the service until the gate passes"]
+    scaffold --> features["Each feature after that follows the flow above"]
+```
+
+The empty first commit matters: in a repository without commits, `setup` proposes the current branch as base.

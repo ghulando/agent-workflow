@@ -11,6 +11,7 @@
       "adapters/**",
       "bin/**",
       "docs/*.md",
+      "skills/**",
       "package.json"
     ],
     "reviewers": {
@@ -25,6 +26,10 @@
       "docs/tasks/flow-bootstrap.md": {
         "maxRound": 5,
         "reason": "The user reopened the task after round 3 to move the stack records into stacks/; round 4 found a path bug in that setup"
+      },
+      "docs/tasks/flow-new-service.md": {
+        "maxRound": 3,
+        "reason": "Round 2 could not verify the diagram against the skills because reviewContext omitted skills/; the user added skills/** and approved a third round"
       }
     }
   }
