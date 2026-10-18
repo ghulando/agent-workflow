@@ -17,7 +17,7 @@ For existing work, use `task-resume <task-file>` and [flow-handoff](../flow-hand
 
 ## Implement
 
-Load [flow-understand](../flow-understand/SKILL.md) for unfamiliar code, [flow-design](../flow-design/SKILL.md) for consequential interface choices, and [flow-implement](../flow-implement/SKILL.md) for implementation slices. Use [flow-debug](../flow-debug/SKILL.md) for defects and [flow-test](../flow-test/SKILL.md) when writing tests. Read required and relevant project stack skills before editing. Name only skills actually loaded; do not read the whole catalog.
+Load [flow-understand](../flow-understand/SKILL.md) for unfamiliar code, [flow-design](../flow-design/SKILL.md) for consequential interface choices, and [flow-implement](../flow-implement/SKILL.md) for implementation slices. Use [flow-debug](../flow-debug/SKILL.md) for defects and [flow-test](../flow-test/SKILL.md) when writing tests. Use [flow-write](../flow-write/SKILL.md) for text another agent or a program reads. Read required and relevant project stack skills before editing. Name only skills actually loaded; do not read the whole catalog.
 
 Update task decisions, progress and next step at meaningful checkpoints. Keep credentials and machine-specific settings out of task files.
 

@@ -135,5 +135,27 @@
         ]
       }
     ]
+  },
+  {
+    "name": "asd-ste100",
+    "repository": "https://github.com/danyuchn/asd-ste100-skill",
+    "commit": "3944283c183eea13fe5bd902b572da3b4de8bf44",
+    "license": "MIT",
+    "files": [
+      {
+        "path": "SKILL.md",
+        "sha256": "39940a0db3d185416edfd757eff4c971006d8f59ad39715295b150b552344342",
+        "adaptedAs": [
+          "flow-write"
+        ]
+      },
+      {
+        "path": "references/writing-rules.md",
+        "sha256": "4b92c86bf803f9f54e069767d34dc7356fbb95fb52a3f28476093917c608c102",
+        "adaptedAs": [
+          "flow-write"
+        ]
+      }
+    ]
   }
 ]
