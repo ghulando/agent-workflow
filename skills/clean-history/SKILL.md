@@ -1,6 +1,6 @@
 ---
 name: clean-history
-description: Clear selected local Claude Code, Pi or Codex history, project folders, caches and logs, plus all halvard team workspaces, only when the user explicitly invokes this skill.
+description: Clear selected local Claude Code, Pi or Codex history, project folders, caches and logs, plus all Halvard team workspaces, only when the user explicitly invokes this skill.
 disable-model-invocation: true
 ---
 

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Install or update halvard from GitHub in every harness found on PATH.
+# Install or update Halvard from GitHub in every harness found on PATH.
 # Run it again to update. It also removes an install under the earlier
 # agent-workflow name, which would otherwise run the guard twice.
 
@@ -17,7 +17,7 @@ old_pi=git:github.com/ghulando/agent-workflow
 node -e '
 const [major, minor] = process.versions.node.split(".").map(Number);
 if (major < 22 || (major === 22 && minor < 18)) {
-  console.error(`Node ${process.versions.node} is too old; halvard needs 22.18 or newer.`);
+  console.error(`Node ${process.versions.node} is too old; Halvard needs 22.18 or newer.`);
   process.exit(1);
 }'
 

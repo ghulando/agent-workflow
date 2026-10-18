@@ -1,6 +1,6 @@
 # Halvard
 
-Shared development workflow for Pi, Codex and Claude Code. Generic engine,
+Halvard is a shared development workflow for Pi, Codex and Claude Code. Generic engine,
 native adapters and adapted skills belong here. Application stack rules belong
 in consuming repositories; the only exception is the stack records in stacks/,
 which halvard-bootstrap reads and npm pack never ships. The engine and skills name

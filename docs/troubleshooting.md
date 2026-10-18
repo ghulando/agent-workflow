@@ -2,7 +2,7 @@
 
 Start with `doctor --author <author>` from the project root, using the runner path printed at session start. Doctor checks configuration and package content. It cannot tell whether a provider is logged in or whether hooks are running.
 
-## No workflow context or guards
+## No Halvard context or guards
 
 Register the plugin with the commands in [install](install.md), restart the harness and approve hook trust. A working install shows "Halvard is active" in the startup context.
 

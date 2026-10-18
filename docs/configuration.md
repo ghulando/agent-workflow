@@ -176,7 +176,7 @@ To query an existing graphify graph, add these entries to the personal `readComm
 }
 ```
 
-They allow reads only. The workflow never builds, updates or installs graphify. Add `graphify-out/` to the project's `.gitignore`.
+They allow reads only. Halvard never builds, updates or installs graphify. Add `graphify-out/` to the project's `.gitignore`.
 
 The built-in classifier also accepts pipes between readers and discard redirects such as `2>/dev/null`. Variables, `$(...)`, backticks, output files and loops make a command unclassifiable, so the guard denies it wherever only reads may run. A glob needs a literal directory prefix. `git -C` counts as a read only when it names the project root by absolute path. A `cd` before a read must stay inside the project. Git reads inside a nested repository are not reads, because that repository can supply executable Git configuration. `--help` and `--version` count as reads only for the built-in readers and for `git`, `rg`, `grep`, `find`, `sed`, `jq`, `node`, `npm` and `herdr`.
 

@@ -1,6 +1,6 @@
 # Usage
 
-The workflow has two parts. The engine is code that runs on every tool call whether or not you mention it. The skills are instructions that tell the agent how to work. Solo and team runs use the same engine and the same skills; the team run adds the `halvard-team` skill on top.
+Halvard has two parts. The engine is code that runs on every tool call whether or not you mention it. The skills are instructions that tell the agent how to work. Solo and team runs use the same engine and the same skills; the team run adds the `halvard-team` skill on top.
 
 ## Solo
 

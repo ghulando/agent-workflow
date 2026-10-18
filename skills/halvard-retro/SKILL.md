@@ -15,7 +15,7 @@ Turn the evidence into findings. A finding is a cause, not a count: "Pi was deni
 
 ## Grill
 
-Ask about one finding at a time, most frequent or most costly first, with the harness's question tool where it has one and in plain chat otherwise. State the evidence, say how many earlier retros logged the same id ("this is the third time"), and recommend one classification: guard bug, skill gap, project config gap, personal config gap or expected. Move on only when the user has classified the finding and named its target: halvard skills, halvard engine, project config or personal config. Push back when an answer contradicts the evidence. Treat an unclear match with an earlier finding as a question for the user, not as a repeat.
+Ask about one finding at a time, most frequent or most costly first, with the harness's question tool where it has one and in plain chat otherwise. State the evidence, say how many earlier retros logged the same id ("this is the third time"), and recommend one classification: guard bug, skill gap, project config gap, personal config gap or expected. Move on only when the user has classified the finding and named its target: Halvard skills, Halvard engine, project config or personal config. Push back when an answer contradicts the evidence. Treat an unclear match with an earlier finding as a question for the user, not as a repeat.
 
 When the findings run out, ask one open question: what slowed or annoyed the user that the logs do not show. Grill the answer like a finding.
 
@@ -25,4 +25,4 @@ Append one entry to `<harness>-retro-log.md` in the workspace root, the director
 
 Never copy transcript text, commands, file contents, credentials or customer data into the log. Guard reasons from `retro-events` and short summaries of the user's answers are the only quoted material.
 
-Finish by showing the entry and listing the actionable findings as candidate halvard tasks. Starting one is the user's call.
+Finish by showing the entry and listing the actionable findings as candidate Halvard tasks. Starting one is the user's call.

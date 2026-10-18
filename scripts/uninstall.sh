@@ -1,5 +1,5 @@
 #!/bin/sh
-# Remove halvard from every harness found on PATH, together with the earlier
+# Remove Halvard from every harness found on PATH, together with the earlier
 # agent-workflow install under the ghulando and agent-workflow-local marketplace
 # names, with its caches and workflow state. Settings files are backed up before anything changes.
 #

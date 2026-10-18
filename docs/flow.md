@@ -1,6 +1,6 @@
 # Flow
 
-How to use the workflow, from install to merge. VS Code draws the diagram in the Markdown preview with the Markdown Preview Mermaid Support extension; GitHub draws it as is.
+How to use Halvard, from install to merge. VS Code draws the diagram in the Markdown preview with the Markdown Preview Mermaid Support extension; GitHub draws it as is.
 
 ```mermaid
 flowchart TD
