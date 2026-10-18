@@ -195,7 +195,7 @@ const GLOB_READERS = new Set([
 ]);
 
 // Help and version output depend on the executable, so only vetted names
-// qualify. The bundled flow-team skill reads Herdr's help.
+// qualify. The bundled halvard-team skill reads Herdr's help.
 const HELP_READERS = new Set([
   ...READERS,
   'git',

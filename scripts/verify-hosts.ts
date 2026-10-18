@@ -18,14 +18,14 @@ if (flag && (flag !== '--pi-loader' || !loaderPath || extra.length)) {
 }
 
 const root = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-native-hosts-')));
-const previous = { pi: process.env.PI_CODING_AGENT_DIR, workflow: process.env.AGENT_WORKFLOW_HOME };
+const previous = { pi: process.env.PI_CODING_AGENT_DIR, workflow: process.env.HALVARD_HOME };
 
 try {
   process.env.PI_CODING_AGENT_DIR = join(root, 'pi');
-  process.env.AGENT_WORKFLOW_HOME = join(root, 'workflow');
+  process.env.HALVARD_HOME = join(root, 'workflow');
   execFileSync('git', ['init', '-q', '--initial-branch=main'], { cwd: root });
   writeFileSync(
-    join(root, '.agent-workflow.json'),
+    join(root, '.halvard.json'),
     JSON.stringify({ version: 1, workflow: { requireReview: false } }),
   );
   if (loaderPath) {
@@ -56,7 +56,7 @@ try {
       const result = await handler({}, ctx);
       if (result) messages.push(result);
     }
-    assert.match(JSON.stringify(messages), /Agent workflow is active/);
+    assert.match(JSON.stringify(messages), /Halvard is active/);
     for (const handler of extension.handlers.get('tool_call') ?? []) {
       assert.equal(
         await handler(
@@ -70,7 +70,7 @@ try {
         ctx,
       )) as { block: boolean; reason: string };
       assert.equal(denial.block, true);
-      assert.match(denial.reason, /^agent-workflow blocked: No work on protected branch main/);
+      assert.match(denial.reason, /^halvard blocked: No work on protected branch main/);
     }
     execFileSync('git', ['checkout', '-q', '-b', 'feature/host-check'], { cwd: root });
     const choices: string[][] = [];
@@ -146,9 +146,9 @@ try {
     process.env.PI_CODING_AGENT_DIR = previous.pi;
   }
   if (previous.workflow === undefined) {
-    delete process.env.AGENT_WORKFLOW_HOME;
+    delete process.env.HALVARD_HOME;
   } else {
-    process.env.AGENT_WORKFLOW_HOME = previous.workflow;
+    process.env.HALVARD_HOME = previous.workflow;
   }
   rmSync(root, { recursive: true, force: true });
 }

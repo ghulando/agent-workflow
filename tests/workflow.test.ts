@@ -33,7 +33,7 @@ function fixture(t: TestContext, overrides = {}) {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   execFileSync('git', ['init', '-q', '--initial-branch=feature/test'], { cwd: root });
   writeFileSync(
-    join(root, '.agent-workflow.json'),
+    join(root, '.halvard.json'),
     JSON.stringify({
       version: 1,
       workflow: { requireReview: false },
@@ -210,7 +210,7 @@ for (const harness of ['pi', 'claude', 'codex']) {
     await withState(root, key, (state) => assert.notEqual(state.pass, null));
     const asked = await bash('git push');
     await call(root, harness, 'UserPromptSubmit', undefined, undefined, {
-      prompt: `approve workflow ${asked.request!}`,
+      prompt: `approve halvard ${asked.request!}`,
     });
     assert.equal((await bash('git push')).decision, undefined);
     assert.equal((await bash('git push')).decision, 'ask');
@@ -220,7 +220,7 @@ for (const harness of ['pi', 'claude', 'codex']) {
       (await call(root, harness, 'PreToolUse', tool, input)).reason!,
       /completion edit may change only task status/,
     );
-    for (const path of ['.claude/settings.json', '.agent-workflow.json', '.git/config']) {
+    for (const path of ['.claude/settings.json', '.halvard.json', '.git/config']) {
       const [protectedTool, protectedInput] = writeInput(harness, path, 'x');
       assert.equal(
         (await call(root, harness, 'PreToolUse', protectedTool, protectedInput)).decision,
@@ -235,11 +235,9 @@ for (const harness of ['pi', 'claude', 'codex']) {
     assert.equal((await bash('git push')).decision, 'ask');
     execFileSync('git', ['checkout', '-q', '-b', 'feature/test'], { cwd: root });
     writeFileSync(join(root, 'guard.mjs'), "export const pre = () => 'extension blocked';\n");
-    const config = JSON.parse(
-      readFileSync(join(root, '.agent-workflow.json'), 'utf8'),
-    ) as ProjectConfig;
+    const config = JSON.parse(readFileSync(join(root, '.halvard.json'), 'utf8')) as ProjectConfig;
     config.extensions = ['guard.mjs'];
-    writeFileSync(join(root, '.agent-workflow.json'), JSON.stringify(config));
+    writeFileSync(join(root, '.halvard.json'), JSON.stringify(config));
     assert.equal((await bash('npm test')).reason!, 'extension blocked');
   });
 }
@@ -462,7 +460,7 @@ test('Codex explicit approval is one-use, operation-bound, session-bound and tre
     'ask',
   );
   await call(root, 'codex', 'UserPromptSubmit', undefined, undefined, {
-    prompt: `approve workflow ${requested.request!}`,
+    prompt: `approve halvard ${requested.request!}`,
   });
   assert.equal(
     (await call(root, 'codex', 'PreToolUse', tool, input, { session_id: 'another' })).decision,
@@ -475,7 +473,7 @@ test('Codex explicit approval is one-use, operation-bound, session-bound and tre
   assert.match(
     (
       await call(root, 'codex', 'UserPromptSubmit', undefined, undefined, {
-        prompt: `approve workflow ${fresh.request!}`,
+        prompt: `approve halvard ${fresh.request!}`,
       })
     ).context!,
     /stale/,
@@ -629,7 +627,7 @@ test('a dangling Claude skills symlink fails installation before any files are w
 test('installation preserves an equivalent single-quoted Codex plugin table', (t) => {
   const root = fixture(t);
   mkdirSync(join(root, '.codex'));
-  const toml = "[plugins.'agent-workflow@ghulando']\nenabled = true\n";
+  const toml = "[plugins.'halvard@ghulando']\nenabled = true\n";
   writeFileSync(join(root, '.codex/config.toml'), toml);
   install(root);
   // Matching only the generated double-quoted heading appends a duplicate table.
@@ -736,7 +734,7 @@ test('Claude explicit fallback authorizes the exact retry after native ask', asy
   // Hashing the request before revision invalidation makes this retry ask again.
   const requested = await call(root, 'claude', 'PreToolUse', 'Write', input);
   await call(root, 'claude', 'UserPromptSubmit', undefined, undefined, {
-    prompt: `approve workflow ${requested.request!}`,
+    prompt: `approve halvard ${requested.request!}`,
   });
   assert.equal((await call(root, 'claude', 'PreToolUse', 'Write', input)).decision, undefined);
   assert.equal((await call(root, 'claude', 'PreToolUse', 'Write', input)).decision, 'ask');
@@ -893,7 +891,7 @@ test('writes to absolute paths outside the project are left to the harness, even
 test('the workflow runner task commands work on protected branches', async (t) => {
   const root = fixture(t);
   execFileSync('git', ['checkout', '-q', '-b', 'main'], { cwd: root });
-  const runner = `node ${quote(resolve(pluginRoot, 'bin/workflow.ts'))}`;
+  const runner = `node ${quote(resolve(pluginRoot, 'bin/halvard.ts'))}`;
   for (const command of [
     `${runner} task-start login 'Add login' --author claude --fix`,
     `${runner} task-start login 'Add login' --author codex --small --fix`,
@@ -968,7 +966,7 @@ test('the workflow runner task commands work on protected branches', async (t) =
 test('a gate inside a pipeline, chain or redirect is refused before it loses its receipt', async (t) => {
   const root = fixture(t);
   execFileSync('git', ['checkout', '-q', '-b', 'feature/gate'], { cwd: root });
-  const runner = `node ${quote(resolve(pluginRoot, 'bin/workflow.ts'))}`;
+  const runner = `node ${quote(resolve(pluginRoot, 'bin/halvard.ts'))}`;
   const gate = `${runner} gate ${sessionKey(root, 'claude', 'test-session')}`;
   for (const command of [
     `${gate} | tail -8`,
@@ -980,7 +978,7 @@ test('a gate inside a pipeline, chain or redirect is refused before it loses its
     assert.equal(result.decision, 'deny', command);
     assert.match(result.reason!, /plain command on its own/, command);
   }
-  for (const command of [gate, `${gate} 2>&1`, 'grep -n "workflow.ts gate" docs/usage.md']) {
+  for (const command of [gate, `${gate} 2>&1`, 'grep -n "halvard.ts gate" docs/usage.md']) {
     const result = await call(root, 'claude', 'PreToolUse', 'Bash', { command });
     assert.doesNotMatch(result.reason ?? '', /plain command on its own/, command);
   }
@@ -993,7 +991,7 @@ test('history runners work from protected-branch subdirectories without widening
       execFileSync('git', ['checkout', '-q', '-b', 'main'], { cwd: root });
       const sub = join(root, 'sub');
       mkdirSync(sub);
-      const runner = `node ${quote(resolve(pluginRoot, 'bin/workflow.ts'))}`;
+      const runner = `node ${quote(resolve(pluginRoot, 'bin/halvard.ts'))}`;
       for (const cwd of [root, sub]) {
         for (const verb of ['history-plan', 'history-digest']) {
           assert.equal(
@@ -1030,8 +1028,8 @@ test('history runners work from protected-branch subdirectories without widening
           ).decision,
           'deny',
         );
-        const previous = process.env.AGENT_WORKFLOW_REVIEW;
-        process.env.AGENT_WORKFLOW_REVIEW = '1';
+        const previous = process.env.HALVARD_REVIEW;
+        process.env.HALVARD_REVIEW = '1';
         try {
           assert.equal(
             (await call(root, harness, 'PreToolUse', 'Bash', { command }, { cwd })).decision,
@@ -1039,9 +1037,9 @@ test('history runners work from protected-branch subdirectories without widening
           );
         } finally {
           if (previous === undefined) {
-            delete process.env.AGENT_WORKFLOW_REVIEW;
+            delete process.env.HALVARD_REVIEW;
           } else {
-            process.env.AGENT_WORKFLOW_REVIEW = previous;
+            process.env.HALVARD_REVIEW = previous;
           }
         }
       }
@@ -1243,26 +1241,24 @@ for (let i = 0; i < 10; i++) await withState(${JSON.stringify(root)}, '${key}', 
 });
 
 test('required bundled skills load and project overrides retain precedence', async (t) => {
-  const root = fixture(t, { requiredSkills: ['flow-test'] });
+  const root = fixture(t, { requiredSkills: ['halvard-test'] });
   // Validating before bundled discovery rejects a required skill shipped with the package.
   for (const harness of ['pi', 'claude', 'codex']) {
     const { context } = await call(root, harness, 'SessionStart');
-    assert.match(context!, /Loaded required skill: .*skills\/flow-test\/SKILL\.md/);
+    assert.match(context!, /Loaded required skill: .*skills\/halvard-test\/SKILL\.md/);
     assert.match(context!, /Choose the interface where real callers observe behavior/);
   }
-  mkdirSync(join(root, '.agents/skills/flow-test'), { recursive: true });
+  mkdirSync(join(root, '.agents/skills/halvard-test'), { recursive: true });
   writeFileSync(
-    join(root, '.agents/skills/flow-test/SKILL.md'),
-    '---\nname: flow-test\ndescription: Project testing\n---\nProject testing override.\n',
+    join(root, '.agents/skills/halvard-test/SKILL.md'),
+    '---\nname: halvard-test\ndescription: Project testing\n---\nProject testing override.\n',
   );
   const { context } = await call(root, 'claude', 'SessionStart');
   assert.match(context!, /Project testing override/);
   assert.doesNotMatch(context!, /Choose the interface where real callers observe behavior/);
-  const config = JSON.parse(
-    readFileSync(join(root, '.agent-workflow.json'), 'utf8'),
-  ) as ProjectConfig;
+  const config = JSON.parse(readFileSync(join(root, '.halvard.json'), 'utf8')) as ProjectConfig;
   config.requiredSkills = ['missing-skill'];
-  writeFileSync(join(root, '.agent-workflow.json'), JSON.stringify(config));
+  writeFileSync(join(root, '.halvard.json'), JSON.stringify(config));
   await assert.rejects(
     call(root, 'claude', 'SessionStart'),
     /required skill not found: missing-skill/,
@@ -1271,32 +1267,32 @@ test('required bundled skills load and project overrides retain precedence', asy
 
 test('startup context reports defaults when the project configuration is absent', async (t) => {
   const root = fixture(t);
-  rmSync(join(root, '.agent-workflow.json'));
+  rmSync(join(root, '.halvard.json'));
   for (const harness of ['pi', 'claude', 'codex']) {
     const { context } = await call(root, harness, 'SessionStart');
     // Unconditionally naming the file sends agents to a nonexistent configuration.
-    assert.match(context!, /Project configuration: defaults \(no \.agent-workflow\.json\)/);
-    assert.doesNotMatch(context!, /Project configuration: \.agent-workflow\.json\./);
+    assert.match(context!, /Project configuration: defaults \(no \.halvard\.json\)/);
+    assert.doesNotMatch(context!, /Project configuration: \.halvard\.json\./);
   }
-  writeFileSync(join(root, '.agent-workflow.json'), '{"version":1}');
+  writeFileSync(join(root, '.halvard.json'), '{"version":1}');
   const { context } = await call(root, 'claude', 'SessionStart');
-  assert.match(context!, /Project configuration: \.agent-workflow\.json\./);
+  assert.match(context!, /Project configuration: \.halvard\.json\./);
 });
 
-test('startup context stays inside the native preview and points to the workflow skill', async (t) => {
+test('startup context stays inside the native preview and points to the halvard skill', async (t) => {
   const root = fixture(t);
   const { context } = await call(root, 'claude', 'SessionStart');
   assert.ok(
     Buffer.byteLength(context!) < 2000,
     `startup context is ${Buffer.byteLength(context!)} bytes`,
   );
-  assert.match(context!, /skills\/workflow\/SKILL\.md/);
-  assert.doesNotMatch(context!, /flow-review/);
+  assert.match(context!, /skills\/halvard\/SKILL\.md/);
+  assert.doesNotMatch(context!, /halvard-review/);
   assert.doesNotMatch(context!, /Adapted from Pstack poteto-mode/);
 });
 
 test('startup context prints the session review command only when review is required', async (t) => {
-  const runner = quote(resolve(pluginRoot, 'bin/workflow.ts'));
+  const runner = quote(resolve(pluginRoot, 'bin/halvard.ts'));
   assert.doesNotMatch(
     (await call(fixture(t), 'claude', 'SessionStart')).context!,
     /Run independent review/,
@@ -1310,14 +1306,14 @@ test('startup context prints the session review command only when review is requ
       `Run independent review with: node ${runner} review <task-file> --author claude --reviewer <reviewer> --round <n> --gate-session ${key}`,
     ),
   );
-  const config = JSON.parse(readFileSync(join(root, '.agent-workflow.json'), 'utf8'));
+  const config = JSON.parse(readFileSync(join(root, '.halvard.json'), 'utf8'));
   writeFileSync(
-    join(root, '.agent-workflow.json'),
+    join(root, '.halvard.json'),
     JSON.stringify({ ...config, review: ['scripts/review.sh'] }),
   );
   assert.ok(
     (await call(root, 'claude', 'SessionStart')).context!.includes(
-      `Run independent review with: REVIEW_GATE_SESSION=${key} AGENT_WORKFLOW_RUNNER=${runner} 'scripts/review.sh' <task-file> claude <reviewer> [round]`,
+      `Run independent review with: REVIEW_GATE_SESSION=${key} HALVARD_RUNNER=${runner} 'scripts/review.sh' <task-file> claude <reviewer> [round]`,
     ),
   );
 });
@@ -1349,9 +1345,9 @@ test('a review wrapper on a protected branch is recognised only with the session
     call(root, 'claude', 'PreToolUse', 'Bash', {
       command: `REVIEW_GATE_SESSION=${key} ${runner}scripts/review.sh docs/tasks/task.md claude codex 1`,
     });
-  const runner = resolve(pluginRoot, 'bin/workflow.ts');
+  const runner = resolve(pluginRoot, 'bin/halvard.ts');
   assert.equal((await wrapper('')).decision, undefined);
-  assert.equal((await wrapper(`AGENT_WORKFLOW_RUNNER=${quote(runner)} `)).decision, undefined);
+  assert.equal((await wrapper(`HALVARD_RUNNER=${quote(runner)} `)).decision, undefined);
   for (const path of ['scripts/review wrapper.sh', "scripts/review's.sh"]) {
     const other = realpathSync(
       fixture(t, {
@@ -1371,17 +1367,17 @@ test('a review wrapper on a protected branch is recognised only with the session
       printed,
     );
   }
-  for (const other of ['/tmp/workflow.ts', `${runner}x`, '']) {
-    assert.equal((await wrapper(`AGENT_WORKFLOW_RUNNER=${quote(other)} `)).decision, 'deny', other);
+  for (const other of ['/tmp/halvard.ts', `${runner}x`, '']) {
+    assert.equal((await wrapper(`HALVARD_RUNNER=${quote(other)} `)).decision, 'deny', other);
   }
 });
 
 test('quoted paths parse back to the same word, including apostrophes', () => {
   for (const path of [
-    '/plain/bin/workflow.ts',
-    '/a b/bin/workflow.ts',
-    "/Users/o'neil/bin/workflow.ts",
-    `/it's "$HOME" \\ \`x\`/workflow.ts`,
+    '/plain/bin/halvard.ts',
+    '/a b/bin/halvard.ts',
+    "/Users/o'neil/bin/halvard.ts",
+    `/it's "$HOME" \\ \`x\`/halvard.ts`,
   ]) {
     assert.deepEqual(
       commands(`node ${quote(path)} gate key`),
@@ -1393,7 +1389,7 @@ test('quoted paths parse back to the same word, including apostrophes', () => {
 
 test('Herdr team skill is discoverable as a bundled skill without requiredSkills', (t) => {
   const root = fixture(t);
-  const team = skills(loadProject(root)).find((skill) => skill.name === 'flow-team');
+  const team = skills(loadProject(root)).find((skill) => skill.name === 'halvard-team');
   assert.ok(team);
   assert.equal(team.bundled, true);
   assert.match(team.description, /only when the user explicitly asks/);
@@ -1467,7 +1463,7 @@ for (const harness of ['pi', 'claude', 'codex']) {
 
   test(`${harness}: multiply linked files and nested configuration cannot bypass protection`, async (t) => {
     const root = fixture(t);
-    linkSync(join(root, '.agent-workflow.json'), join(root, 'ordinary.json'));
+    linkSync(join(root, '.halvard.json'), join(root, 'ordinary.json'));
     const [tool, input] = writeInput(
       harness,
       'ordinary.json',
@@ -1477,7 +1473,7 @@ for (const harness of ['pi', 'claude', 'codex']) {
     rmSync(join(root, 'ordinary.json'));
     const [nestedTool, nestedInput] = writeInput(
       harness,
-      'nested/.agent-workflow.json',
+      'nested/.halvard.json',
       '{"version":1,"protectedBranches":[]}',
     );
     assert.equal(
@@ -1485,10 +1481,7 @@ for (const harness of ['pi', 'claude', 'codex']) {
       'ask',
     );
     mkdirSync(join(root, 'nested'));
-    writeFileSync(
-      join(root, 'nested/.agent-workflow.json'),
-      '{"version":1,"protectedBranches":[]}',
-    );
+    writeFileSync(join(root, 'nested/.halvard.json'), '{"version":1,"protectedBranches":[]}');
     execFileSync('git', ['checkout', '-q', '-b', 'main'], { cwd: root });
     const [parentTool, parentInput] = writeInput(harness, '../source.txt', 'changed');
     assert.equal(
@@ -1592,14 +1585,14 @@ test('Pi approval covers one exact shipping operation, once', async (t) => {
   // A session-wide approval is an ordinary prompt and authorizes nothing.
   assert.deepEqual(
     await call(root, 'pi', 'UserPromptSubmit', undefined, undefined, {
-      prompt: `approve workflow ${first.request} for this session`,
+      prompt: `approve halvard ${first.request} for this session`,
     }),
     {},
   );
   assert.equal((await call(root, 'pi', 'PreToolUse', 'bash', shell)).decision, 'ask');
   const second = await call(root, 'pi', 'PreToolUse', 'bash', shell);
   await call(root, 'pi', 'UserPromptSubmit', undefined, undefined, {
-    prompt: `approve workflow ${second.request}`,
+    prompt: `approve halvard ${second.request}`,
   });
   assert.equal((await call(root, 'pi', 'PreToolUse', 'bash', shell)).decision, undefined);
   assert.equal((await call(root, 'pi', 'PreToolUse', 'bash', shell)).decision, 'ask');
@@ -1611,7 +1604,7 @@ for (const harness of ['pi', 'claude', 'codex']) {
     const outside = mkdtempSync(join(tmpdir(), 'workflow-dangling-'));
     t.after(() => rmSync(outside, { recursive: true, force: true }));
     mkdirSync(join(root, 'nested'));
-    symlinkSync(join(root, 'nested/.agent-workflow.json'), join(outside, 'config-alias'));
+    symlinkSync(join(root, 'nested/.halvard.json'), join(outside, 'config-alias'));
     symlinkSync(join(root, '.claude/settings.json'), join(root, 'link.txt'));
     symlinkSync(join(outside, 'escape-target.txt'), join(root, 'escape.txt'));
     for (const path of [join(outside, 'config-alias'), 'link.txt']) {
@@ -1843,7 +1836,7 @@ test('the gate prints one line per step and the failing tail, and logs everythin
   const output = printed.join('');
   const log = output.match(/^workflow: full gate log (.+)$/m)![1]!;
   assert.match(
-    log.slice(join(process.env.AGENT_WORKFLOW_WORKSPACE!, basename(root)).length),
+    log.slice(join(process.env.HALVARD_WORKSPACE!, basename(root)).length),
     new RegExp(`^/gate-${key.slice(0, 12)}-[0-9a-f]{8}\\.log$`),
   );
   assert.equal(
@@ -1949,7 +1942,7 @@ test('overlapping gates keep a log each and an unsafe repository folder is refus
   const key = sessionKey(root, 'codex', randomUUID());
   const gate = () =>
     new Promise<string>((done) => {
-      const child = spawn(process.execPath, [join(pluginRoot, 'bin/workflow.ts'), 'gate', key], {
+      const child = spawn(process.execPath, [join(pluginRoot, 'bin/halvard.ts'), 'gate', key], {
         cwd: root,
       });
       let output = '';
@@ -1964,7 +1957,7 @@ test('overlapping gates keep a log each and an unsafe repository folder is refus
   const other = fixture(t);
   const elsewhere = mkdtempSync(join(tmpdir(), 'workflow-gate-elsewhere-'));
   t.after(() => rmSync(elsewhere, { recursive: true, force: true }));
-  symlinkSync(elsewhere, join(process.env.AGENT_WORKFLOW_WORKSPACE!, basename(other)));
+  symlinkSync(elsewhere, join(process.env.HALVARD_WORKSPACE!, basename(other)));
   await assert.rejects(runGate(other, sessionKey(other, 'codex', randomUUID())), /unsafe/);
 });
 
@@ -1994,7 +1987,7 @@ test('Pi shipping on a protected branch gets only one-time approval', async (t) 
   assert.equal(push.decision, 'ask');
   assert.deepEqual(
     await call(root, 'pi', 'UserPromptSubmit', undefined, undefined, {
-      prompt: `approve workflow ${push.request} for this session`,
+      prompt: `approve halvard ${push.request} for this session`,
     }),
     {},
   );
@@ -2021,9 +2014,9 @@ for (const harness of ['pi', 'claude', 'codex']) {
       assert.match(result.reason!, /could not be classified as read-only/);
       assert.match(result.reason!, /literal paths/);
     }
-    const previousReview = process.env.AGENT_WORKFLOW_REVIEW;
+    const previousReview = process.env.HALVARD_REVIEW;
     try {
-      process.env.AGENT_WORKFLOW_REVIEW = '1';
+      process.env.HALVARD_REVIEW = '1';
       const result = await call(root, harness, 'PreToolUse', 'Bash', {
         command: 'wc -l $(git ls-files)',
       });
@@ -2033,9 +2026,9 @@ for (const harness of ['pi', 'claude', 'codex']) {
       assert.doesNotMatch(result.reason!, /feature or fix branch/);
     } finally {
       if (previousReview === undefined) {
-        delete process.env.AGENT_WORKFLOW_REVIEW;
+        delete process.env.HALVARD_REVIEW;
       } else {
-        process.env.AGENT_WORKFLOW_REVIEW = previousReview;
+        process.env.HALVARD_REVIEW = previousReview;
       }
     }
     assert.equal(
@@ -2075,7 +2068,7 @@ for (const harness of ['pi', 'claude', 'codex']) {
     if (harness !== 'pi') {
       Date.now = now;
       writeFileSync(
-        join(root, '.agent-workflow.json'),
+        join(root, '.halvard.json'),
         JSON.stringify({ version: 1, workflow: { shellApproval: 'native' } }),
       );
       calls = 0;
@@ -2096,7 +2089,7 @@ for (const harness of ['pi', 'claude', 'codex']) {
     t.after(() => {
       Date.now = now;
     });
-    const [tool, input] = writeInput(harness, '.agent-workflow.json', '{}');
+    const [tool, input] = writeInput(harness, '.halvard.json', '{}');
     await assert.rejects(call(root, harness, 'PreToolUse', tool, input), /too large to verify/);
   });
 

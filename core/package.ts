@@ -8,8 +8,8 @@ export function packageDigest(root: string) {
   root = realpathSync(root);
   const parsed: unknown = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
   const metadata = parsed as PackageMetadata;
-  if (metadata.name !== 'agent-workflow' || !Array.isArray(metadata.files)) {
-    throw new Error('not an agent-workflow package');
+  if (metadata.name !== 'halvard' || !Array.isArray(metadata.files)) {
+    throw new Error('not an halvard package');
   }
   const hash = createHash('sha256');
   const add = (value: string | Buffer) => {

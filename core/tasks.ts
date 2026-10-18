@@ -22,7 +22,7 @@ export function taskWorkspace(root: string, id: string) {
   }
   if (readFileSync(marker, 'utf8').trim() !== root) {
     throw new Error(
-      `task workspace ${dir} belongs to another repository; set AGENT_WORKFLOW_WORKSPACE or use another task id`,
+      `task workspace ${dir} belongs to another repository; set HALVARD_WORKSPACE or use another task id`,
     );
   }
   return dir;
@@ -33,7 +33,7 @@ const taskId = (file: string) => basename(file, '.md');
 export function readTask(project: Project, path: string): Task {
   const file = projectPath(project.root, project.root, path);
   const content = readText(project.root, file);
-  const match = content.match(/^<!-- agent-workflow (.+) -->$/m);
+  const match = content.match(/^<!-- halvard (.+) -->$/m);
   if (!match) throw new Error('task has no workflow metadata; use task-start for portable tasks');
   const parsed: unknown = JSON.parse(match[1]!);
   const metadata = parsed as TaskMetadata;
@@ -92,7 +92,7 @@ export function startTask(
   // checkout of main, or rewriting of the user's existing branch is needed.
   git(root, ['switch', '-c', branch, base]);
   const metadata = { version: 1, title, author, branch, base, small, reviewCycle: randomUUID() };
-  const content = `# ${title}\n\n<!-- agent-workflow ${JSON.stringify(metadata)} -->\n\n**Status:** open.\n\n## Goal\n\n${title}\n\n## Acceptance criteria\n\n- [ ] Describe the observable result before implementation.\n\n## Plan\n\n${small ? 'Small task; implement directly.' : '- [ ] Record the short implementation plan before coding.'}\n\n## Decisions\n\nNone yet.\n\n## Progress\n\nBranch created; implementation has not started.\n\n## Verification\n\nNot run.\n\n## Review\n\nNot run. Record fixes before re-review; reports are kept outside the source tree.\n\n## Next step\n\nRead project instructions and fill the acceptance criteria${small ? '.' : ' and plan.'}\n`;
+  const content = `# ${title}\n\n<!-- halvard ${JSON.stringify(metadata)} -->\n\n**Status:** open.\n\n## Goal\n\n${title}\n\n## Acceptance criteria\n\n- [ ] Describe the observable result before implementation.\n\n## Plan\n\n${small ? 'Small task; implement directly.' : '- [ ] Record the short implementation plan before coding.'}\n\n## Decisions\n\nNone yet.\n\n## Progress\n\nBranch created; implementation has not started.\n\n## Verification\n\nNot run.\n\n## Review\n\nNot run. Record fixes before re-review; reports are kept outside the source tree.\n\n## Next step\n\nRead project instructions and fill the acceptance criteria${small ? '.' : ' and plan.'}\n`;
   mkdirSync(dirname(resolve(root, file)), { recursive: true });
   writeFileSync(resolve(root, file), content, { flag: 'wx' });
   return { branch, task: file, base, workspace: taskWorkspace(root, id) };
@@ -118,8 +118,8 @@ export function handoffTask(cwd: string, path: string, author: string) {
   if (!authors.includes(author)) throw new Error('author must be pi, codex or claude');
   const metadata = { ...task.metadata, author, reviewCycle: randomUUID() };
   const content = task.content.replace(
-    /^<!-- agent-workflow (.+) -->$/m,
-    `<!-- agent-workflow ${JSON.stringify(metadata)} -->`,
+    /^<!-- halvard (.+) -->$/m,
+    `<!-- halvard ${JSON.stringify(metadata)} -->`,
   );
   writeFileSync(resolve(project.root, task.file), content);
   return {

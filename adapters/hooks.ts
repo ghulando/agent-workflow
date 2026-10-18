@@ -7,7 +7,7 @@ export function hookOutput(
 ) {
   if (result.decision) {
     const reason = result.request
-      ? `${result.reason}\nTo approve this one operation, send exactly: approve workflow ${result.request}`
+      ? `${result.reason}\nTo approve this one operation, send exactly: approve halvard ${result.request}`
       : result.reason;
     return {
       hookSpecificOutput: {

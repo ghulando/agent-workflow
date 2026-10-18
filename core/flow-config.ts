@@ -33,11 +33,11 @@ export function reviewerSettings(workflow: FlowConfig, author: string, reviewer:
 }
 
 export const personalRoot = () =>
-  resolve(process.env.AGENT_WORKFLOW_HOME || resolve(homedir(), '.config/agent-workflow'));
+  resolve(process.env.HALVARD_HOME || resolve(homedir(), '.config/halvard'));
 
 // Team briefs and reports live here, one folder per repository and task.
 export const workspaceRoot = (home = homedir()) =>
-  resolve(process.env.AGENT_WORKFLOW_WORKSPACE || resolve(home, '.agent-workflow'));
+  resolve(process.env.HALVARD_WORKSPACE || resolve(home, '.halvard'));
 
 export function flowConfig(input: unknown = {}): FlowConfig {
   if (!input || typeof input !== 'object' || Array.isArray(input)) {

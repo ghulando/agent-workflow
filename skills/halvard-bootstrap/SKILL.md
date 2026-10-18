@@ -1,5 +1,5 @@
 ---
-name: flow-bootstrap
+name: halvard-bootstrap
 description: Configure a repository's stack rules and skills from shared stack records, asking only what a record leaves open. Use for a new or empty repository, or to add stack skills to an existing one.
 ---
 
@@ -7,13 +7,13 @@ Bootstrap writes configuration, never application code. It does not scaffold pro
 
 ## Read the state
 
-Run `node <plugin-root>/bin/workflow.ts bootstrap .` from the repository root. It prints the valid records in the configured `stacks` clone with their kind, summary and concerns, the records that break the format, the stacks `commit`, and per record whether its files differ from that commit (`modified`), the stacks the setup scan `detected`, the branch and whether it is protected, the existing `stamp`, the current `agentsSection`, the existing skills and a tree fingerprint. Without a `stacks` setting there are no records. Say so, and offer either to stop while the user sets `stacks` in personal configuration, or to continue without a record: then ask the new-stack questions, write no record, and stamp the stack with a null commit and `modified` true. Report invalid records by file and problem rather than guessing past them.
+Run `node <plugin-root>/bin/halvard.ts bootstrap .` from the repository root. It prints the valid records in the configured `stacks` clone with their kind, summary and concerns, the records that break the format, the stacks `commit`, and per record whether its files differ from that commit (`modified`), the stacks the setup scan `detected`, the branch and whether it is protected, the existing `stamp`, the current `agentsSection`, the existing skills and a tree fingerprint. Without a `stacks` setting there are no records. Say so, and offer either to stop while the user sets `stacks` in personal configuration, or to continue without a record: then ask the new-stack questions, write no record, and stamp the stack with a null commit and `modified` true. Report invalid records by file and problem rather than guessing past them.
 
 When `protectedBranch` is true, the guard will refuse the apply step; ask the user to create a working branch first. When `commit` is null or the chosen record's `modified` is true, say so before asking further: the stamp will not point at a committed record unless the user commits the stacks checkout first.
 
 ## Choose the stack
 
-Ask which stack, offering the valid records and a new one, and mention what the scan detected. Never pick silently, including when the scan detects exactly one stack. An argument such as `flow-bootstrap <stack>` answers this question.
+Ask which stack, offering the valid records and a new one, and mention what the scan detected. Never pick silently, including when the scan detects exactly one stack. An argument such as `halvard-bootstrap <stack>` answers this question.
 
 Then ask for every placeholder the record uses, such as a service name or a namespace prefix, so no placeholder reaches the generated files.
 
@@ -59,8 +59,8 @@ Show the full file list, the `AGENTS.md` section and each skill, and wait for th
 
 ## Apply and hand off
 
-Run `node <plugin-root>/bin/workflow.ts bootstrap-apply . <plan-file>`. It adds a `CLAUDE.md` containing `@AGENTS.md` when the repository has `AGENTS.md` and no `CLAUDE.md`, so Claude Code loads the same rules; when `CLAUDE.md` exists without that import, relay the `claude` message from the result. It refuses a stale plan, an unlisted existing skill, a skill whose name does not match its directory and a target with several hard links. When the tree changed after confirmation, run `bootstrap .` again, rebuild the plan with the new fingerprint and show what changed before applying. Never work around a refusal.
+Run `node <plugin-root>/bin/halvard.ts bootstrap-apply . <plan-file>`. It adds a `CLAUDE.md` containing `@AGENTS.md` when the repository has `AGENTS.md` and no `CLAUDE.md`, so Claude Code loads the same rules; when `CLAUDE.md` exists without that import, relay the `claude` message from the result. It refuses a stale plan, an unlisted existing skill, a skill whose name does not match its directory and a target with several hard links. When the tree changed after confirmation, run `bootstrap .` again, rebuild the plan with the new fingerprint and show what changed before applying. Never work around a refusal.
 
-Then use [flow-setup](../flow-setup/SKILL.md): `setup` proposes the recorded gate while none is configured, and the user reviews it before `setup-apply`. In a repository without commits, `setup` proposes the current branch as base; point that out.
+Then use [halvard-setup](../halvard-setup/SKILL.md): `setup` proposes the recorded gate while none is configured, and the user reviews it before `setup-apply`. In a repository without commits, `setup` proposes the current branch as base; point that out.
 
 Finish by naming the files written, the stacks commit recorded and whether the record had uncommitted changes. Committing the result is the user's call.

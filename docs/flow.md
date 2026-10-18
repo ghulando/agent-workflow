@@ -4,14 +4,14 @@ How to use the workflow, from install to merge. VS Code draws the diagram in the
 
 ```mermaid
 flowchart TD
-    install["Install the plugin, restart sessions, approve hook trust"] --> configured{"Repo has .agent-workflow.json?"}
-    configured -- no --> setup["Run flow-bootstrap for stack rules and skills, then flow-setup: set gate and reviewers, commit .agent-workflow.json"]
+    install["Install the plugin, restart sessions, approve hook trust"] --> configured{"Repo has .halvard.json?"}
+    configured -- no --> setup["Run halvard-bootstrap for stack rules and skills, then halvard-setup: set gate and reviewers, commit .halvard.json"]
     setup --> ask
-    configured -- yes --> ask["Describe the task, or call /workflow with it"]
+    configured -- yes --> ask["Describe the task, or call /halvard with it"]
 
     ask --> mode{"Team run?"}
     mode -- "no, solo" --> start["Agent runs task-start: clean tree, feature/ or fix/ branch, docs/tasks/id.md"]
-    mode -- "yes, in Herdr" --> team["Ask for flow-team in the Claude pane: lead, implementer, reviewer"]
+    mode -- "yes, in Herdr" --> team["Ask for halvard-team in the Claude pane: lead, implementer, reviewer"]
     team --> start
 
     start --> size{"Substantial or unclear?"}
@@ -31,11 +31,11 @@ flowchart TD
     more -- no --> open["Task stays open; you resolve the remaining findings"]
     review -- yes --> done["Agent marks the task done and shows the diff"]
     done --> retro{"Run the offered retro?"}
-    retro -- yes --> grill["flow-retro reads workflow events, grills you per finding, appends the retro log"]
+    retro -- yes --> grill["halvard-retro reads workflow events, grills you per finding, appends the retro log"]
     grill --> ship
     retro -- no --> ship["You approve commit, then merge and push, each with its own yes"]
 
-    build -. "switch harness" .-> handoff["flow-handoff, then task-resume in the new tool"]
+    build -. "switch harness" .-> handoff["halvard-handoff, then task-resume in the new tool"]
     handoff -.-> build
 ```
 
@@ -52,12 +52,12 @@ flowchart TD
     stacks -- yes --> investigate["Optional: agent investigates the requirement and neighbouring services, writes findings and open questions"]
     investigate --> choose["You pick the stack"]
     choose --> record{"Record exists?"}
-    record -- no --> newrec["flow-bootstrap asks the new-stack questions and writes the record; you commit it in the stacks checkout"]
+    record -- no --> newrec["halvard-bootstrap asks the new-stack questions and writes the record; you commit it in the stacks checkout"]
     newrec --> bootstrap
-    record -- yes --> bootstrap["flow-bootstrap: answer the open choices; writes the AGENTS.md stack section, CLAUDE.md, skills and stack entry"]
-    bootstrap --> setup["flow-setup: review the proposed gate and reviewers, then apply them"]
+    record -- yes --> bootstrap["halvard-bootstrap: answer the open choices; writes the AGENTS.md stack section, CLAUDE.md, skills and stack entry"]
+    bootstrap --> setup["halvard-setup: review the proposed gate and reviewers, then apply them"]
     setup --> commit["You review and commit the configuration, then fast-forward main"]
-    commit --> scaffold["First task: /workflow scaffold the service until the gate passes"]
+    commit --> scaffold["First task: /halvard scaffold the service until the gate passes"]
     scaffold --> features["Each feature after that follows the flow above"]
 ```
 

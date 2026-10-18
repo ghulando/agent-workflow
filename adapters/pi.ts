@@ -6,7 +6,7 @@ import planMode from './plan-ui.ts';
 export default function workflow(pi: ExtensionAPI) {
   // Pi gives each extension a different API object but shares runtime flag
   // values. Check before setting the default so a second package copy is inert.
-  const marker = 'agent-workflow-loaded';
+  const marker = 'halvard-loaded';
   pi.registerFlag(marker, {
     type: 'boolean',
     description: 'Internal workflow registration marker',
@@ -35,7 +35,7 @@ export default function workflow(pi: ExtensionAPI) {
     if (!result.context) return;
     return {
       message: {
-        customType: 'agent-workflow-context',
+        customType: 'halvard-context',
         content:
           result.context +
           (plan
@@ -47,11 +47,11 @@ export default function workflow(pi: ExtensionAPI) {
   });
   pi.on('context', async (event) => {
     const last = event.messages.findLastIndex(
-      (message) => message.customType === 'agent-workflow-context',
+      (message) => message.customType === 'halvard-context',
     );
     return {
       messages: event.messages.filter(
-        (message, i) => message.customType !== 'agent-workflow-context' || i === last,
+        (message, i) => message.customType !== 'halvard-context' || i === last,
       ),
     };
   });
@@ -63,7 +63,7 @@ export default function workflow(pi: ExtensionAPI) {
     });
     if (result.context) {
       pi.sendMessage({
-        customType: 'agent-workflow-approval',
+        customType: 'halvard-approval',
         content: result.context,
         display: true,
       });
@@ -76,13 +76,13 @@ export default function workflow(pi: ExtensionAPI) {
       if (result.decision === 'ask' && ctx.hasUI) {
         const once = 'Yes, once';
         const choice = await ctx.ui.select(
-          `Approve workflow operation?\n${result.reason}\n\n${event.toolName}\n${JSON.stringify(event.input, null, 2)}`,
+          `Approve Halvard operation?\n${result.reason}\n\n${event.toolName}\n${JSON.stringify(event.input, null, 2)}`,
           [once, 'No'],
         );
         if (choice === once) {
           await handle('pi', {
             ...payload(ctx, {}, 'UserPromptSubmit'),
-            prompt: `approve workflow ${result.request}`,
+            prompt: `approve halvard ${result.request}`,
           });
           result = await handle('pi', input);
         }
@@ -92,12 +92,12 @@ export default function workflow(pi: ExtensionAPI) {
         return {
           block: true,
           reason:
-            `agent-workflow blocked: ${result.reason}` +
-            (result.request ? `\nSend: approve workflow ${result.request}` : ''),
+            `halvard blocked: ${result.reason}` +
+            (result.request ? `\nSend: approve halvard ${result.request}` : ''),
         };
       }
     } catch (err) {
-      return { block: true, reason: `agent-workflow blocked: ${(err as Error).message}` };
+      return { block: true, reason: `halvard blocked: ${(err as Error).message}` };
     }
   });
   pi.on('tool_result', async (event, ctx) => {
@@ -108,10 +108,7 @@ export default function workflow(pi: ExtensionAPI) {
       }
     } catch (err) {
       return {
-        content: [
-          ...event.content,
-          { type: 'text', text: `agent-workflow: ${(err as Error).message}` },
-        ],
+        content: [...event.content, { type: 'text', text: `halvard: ${(err as Error).message}` }],
       };
     }
   });

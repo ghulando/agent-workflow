@@ -69,12 +69,12 @@ export function startupContext(
   author: string,
 ) {
   const catalog = skills(project);
-  const workflow = catalog.find((skill) => skill.name === 'workflow');
+  const workflow = catalog.find((skill) => skill.name === 'halvard');
   const local = catalog.filter((skill) => !skill.bundled);
   // Every harness lists bundled skills natively, so only the workflow entry
   // point is named. Claude previews only the start of long context.
   const lines = [
-    `Agent workflow is active for ${project.root}. Read AGENTS.md and any task specification before implementation.`,
+    `Halvard is active for ${project.root}. Read AGENTS.md and any task specification before implementation.`,
     'Start work on a feature or fix branch. Do not commit, merge, push or publish without explicit approval.',
     'Use literal paths rather than shell variables in read commands; variables make a command unclassifiable.',
     `Project configuration: ${existsSync(resolve(project.root, CONFIG)) ? CONFIG : `defaults (no ${CONFIG})`}. Session key: ${key}.`,
@@ -84,9 +84,9 @@ export function startupContext(
     ...(project.config.workflow.requireReview
       ? [`Run independent review with: ${reviewCall}`]
       : []),
-    'An approval request can be approved by sending exactly: approve workflow <request-id>. Only the pending operation is authorized, once, on the same tree.',
+    'An approval request can be approved by sending exactly: approve halvard <request-id>. Only the pending operation is authorized, once, on the same tree.',
     'Report which project skills you loaded. Read applicable on-demand skills before writing code. Follow project review and invariant requirements before marking done.',
-    `Read the workflow skill before implementation tasks: ${workflow!.file}. Substantial tasks get a short plan before coding; small clear fixes proceed directly. Keep task progress portable across harnesses.`,
+    `Read the halvard skill before implementation tasks: ${workflow!.file}. Substantial tasks get a short plan before coding; small clear fixes proceed directly. Keep task progress portable across harnesses.`,
     `Personal workflow: ${JSON.stringify(project.config.workflow)}. Repo settings override personal defaults. Reviewer selection is explicit; never silently use self-review.`,
     ...(project.config.workflow.requireReview
       ? [author]

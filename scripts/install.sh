@@ -1,20 +1,23 @@
 #!/bin/sh
-# Install or update agent-workflow from GitHub in every harness found on PATH.
-# Run it again to update. It also removes an install under the old
-# agent-workflow-local marketplace name, which would otherwise run the guard twice.
+# Install or update halvard from GitHub in every harness found on PATH.
+# Run it again to update. It also removes an install under the earlier
+# agent-workflow name, which would otherwise run the guard twice.
 
 set -e
 
-repo=ghulando/agent-workflow
+repo=ghulando/halvard
 market=ghulando
-old=agent-workflow-local
-plugin=agent-workflow
+plugin=halvard
 pi_source=git:github.com/$repo
+# The earlier agent-workflow plugin, under this marketplace or its own old one.
+old_market=agent-workflow-local
+old_ids="agent-workflow@$market agent-workflow@$old_market"
+old_pi=git:github.com/ghulando/agent-workflow
 
 node -e '
 const [major, minor] = process.versions.node.split(".").map(Number);
 if (major < 22 || (major === 22 && minor < 18)) {
-  console.error(`Node ${process.versions.node} is too old; agent-workflow needs 22.18 or newer.`);
+  console.error(`Node ${process.versions.node} is too old; halvard needs 22.18 or newer.`);
   process.exit(1);
 }'
 
@@ -42,11 +45,13 @@ if command -v claude > /dev/null; then
   plugins=$(claude plugin list --json)
   expect "$markets" "Array.isArray(j) && j.every((m) => typeof m?.name === 'string')" "claude plugin marketplace list"
   expect "$plugins" "Array.isArray(j) && j.every((p) => typeof p?.id === 'string' && typeof p.scope === 'string')" "claude plugin list"
-  if has "$plugins" "j.some((p) => p.id === '$plugin@$old' && p.scope === 'user')"; then
-    claude plugin uninstall "$plugin@$old"
-  fi
-  if has "$markets" "j.some((m) => m.name === '$old')"; then
-    claude plugin marketplace remove "$old"
+  for id in $old_ids; do
+    if has "$plugins" "j.some((p) => p.id === '$id' && p.scope === 'user')"; then
+      claude plugin uninstall "$id"
+    fi
+  done
+  if has "$markets" "j.some((m) => m.name === '$old_market')"; then
+    claude plugin marketplace remove "$old_market"
   fi
   if has "$markets" "j.some((m) => m.name === '$market')"; then
     claude plugin marketplace update "$market"
@@ -57,9 +62,11 @@ if command -v claude > /dev/null; then
     claude plugin uninstall "$plugin@$market"
   fi
   claude plugin install "$plugin@$market"
-  if has "$plugins" "j.some((p) => p.id === '$plugin@$old' && p.scope === 'project')"; then
-    echo "Projects still enable $plugin@$old. In each one run: claude plugin uninstall $plugin@$old --scope project"
-  fi
+  for id in $old_ids; do
+    if has "$plugins" "j.some((p) => p.id === '$id' && p.scope === 'project')"; then
+      echo "Projects still enable $id. In each one run: claude plugin uninstall $id --scope project"
+    fi
+  done
 fi
 
 if command -v codex > /dev/null; then
@@ -68,11 +75,13 @@ if command -v codex > /dev/null; then
   plugins=$(codex plugin list --json)
   expect "$markets" "Array.isArray(j.marketplaces) && j.marketplaces.every((m) => typeof m?.name === 'string')" "codex plugin marketplace list"
   expect "$plugins" "Array.isArray(j.installed) && j.installed.every((p) => typeof p?.pluginId === 'string')" "codex plugin list"
-  if has "$plugins" "j.installed.some((p) => p.pluginId === '$plugin@$old')"; then
-    codex plugin remove "$plugin@$old"
-  fi
-  if has "$markets" "j.marketplaces.some((m) => m.name === '$old')"; then
-    codex plugin marketplace remove "$old"
+  for id in $old_ids; do
+    if has "$plugins" "j.installed.some((p) => p.pluginId === '$id')"; then
+      codex plugin remove "$id"
+    fi
+  done
+  if has "$markets" "j.marketplaces.some((m) => m.name === '$old_market')"; then
+    codex plugin marketplace remove "$old_market"
   fi
   if has "$markets" "j.marketplaces.some((m) => m.name === '$market')"; then
     codex plugin marketplace upgrade "$market"
@@ -88,6 +97,9 @@ fi
 if command -v pi > /dev/null; then
   echo "Pi"
   packages=$(pi list)
+  if printf '%s\n' "$packages" | grep -qxF "  $old_pi"; then
+    pi remove "$old_pi"
+  fi
   if printf '%s\n' "$packages" | grep -qxF "  $pi_source"; then
     pi update "$pi_source"
   else
@@ -95,7 +107,7 @@ if command -v pi > /dev/null; then
   fi
 fi
 
-workspace=${AGENT_WORKFLOW_WORKSPACE:-$HOME/.agent-workflow}
+workspace=${HALVARD_WORKSPACE:-$HOME/.halvard}
 cat << EOF
 
 Done. Restart every open Claude Code, Codex and Pi session, and approve hook trust when asked.

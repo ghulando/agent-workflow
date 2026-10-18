@@ -1,13 +1,13 @@
 # Stack records
 
-A stack record holds a team's decisions for one kind of repository: the architecture, the libraries, the naming, the test style and the gate. `flow-bootstrap` reads the records, asks only what a record leaves open, and turns the answers into the repository's own `AGENTS.md` section and skills. The workflow engine knows no stack; everything stack-specific lives in the records and, after bootstrap, in the repository.
+A stack record holds a team's decisions for one kind of repository: the architecture, the libraries, the naming, the test style and the gate. `halvard-bootstrap` reads the records, asks only what a record leaves open, and turns the answers into the repository's own `AGENTS.md` section and skills. The workflow engine knows no stack; everything stack-specific lives in the records and, after bootstrap, in the repository.
 
 ## Where records live
 
 Records are plain Markdown, one directory per stack, in a Git checkout. This repository keeps its records in `stacks/`, which `npm pack` does not ship, so the installed plugin carries no stack opinions. Point the workflow at the checkout with the `stacks` workflow setting, usually in personal configuration:
 
 ```json
-{ "stacks": "~/projects/agent-workflow/stacks" }
+{ "stacks": "~/projects/halvard/stacks" }
 ```
 
 Any other checkout of records works the same way. The engine reads the directory and never fetches it. Point the setting at a working checkout rather than an installed copy, because a new record written during bootstrap lands there for you to review and commit. Without the setting, bootstrap still runs and asks every question.
@@ -38,7 +38,7 @@ A line belongs in a record only if two good engineers could disagree on it. "Han
 
 ## What bootstrap writes
 
-In the target repository, bootstrap writes a stack section in `AGENTS.md` between `<!-- agent-workflow stack -->` and `<!-- /agent-workflow stack -->`, one skill per concern under the first `skillRoots` entry, the always-on concerns in `requiredSkills`, and a `stack` entry in `.agent-workflow.json`:
+In the target repository, bootstrap writes a stack section in `AGENTS.md` between `<!-- halvard stack -->` and `<!-- /halvard stack -->`, one skill per concern under the first `skillRoots` entry, the always-on concerns in `requiredSkills`, and a `stack` entry in `.halvard.json`:
 
 ```json
 {

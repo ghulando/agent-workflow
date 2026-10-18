@@ -25,7 +25,7 @@ for (const personal of [false, true]) {
     fs.mkdirSync(join(dir, '.codex'));
     const original = Buffer.from([0x23, 0x20, 0xff, 0x0a]);
     fs.writeFileSync(settings, original);
-    const destination = join(dir, '.config/agent-workflow');
+    const destination = join(dir, '.config/halvard');
     const plan = personal ? personalInstallPlan(dir, destination) : installPlan(dir);
     const write = plan.writes.find((write) => write.path.endsWith('.codex/config.toml'));
     assert.ok(Buffer.isBuffer(write!.before));
@@ -39,10 +39,10 @@ for (const personal of [false, true]) {
 
 test('a later settings-swap failure restores the old package and all earlier settings', (t) => {
   const dir = home(t);
-  const destination = join(dir, '.config/agent-workflow');
+  const destination = join(dir, '.config/halvard');
   const target = join(destination, 'package');
   fs.mkdirSync(target, { recursive: true });
-  const oldPackage = '{"name":"agent-workflow","version":"0.0.0"}\n';
+  const oldPackage = '{"name":"halvard","version":"0.0.0"}\n';
   fs.writeFileSync(join(target, 'package.json'), oldPackage);
   fs.mkdirSync(join(dir, '.pi/agent'), { recursive: true });
   fs.writeFileSync(join(dir, '.pi/agent/settings.json'), '{"custom":true}\n');
@@ -84,7 +84,7 @@ test('a vendored copy failure leaves no partial package and the same install can
     t.mock.restoreAll();
     syncBuiltinESMExports();
   }
-  assert.equal(fs.existsSync(join(dir, 'plugins/agent-workflow')), false);
+  assert.equal(fs.existsSync(join(dir, 'plugins/halvard')), false);
   assert.ok(installPlan(dir).copy);
   install(dir);
   assert.equal(installPlan(dir).drift!.matches, true);
@@ -92,7 +92,7 @@ test('a vendored copy failure leaves no partial package and the same install can
 
 test('same-version repair is explicit for both installation types and refreshes native registration', (t) => {
   const dir = home(t);
-  const destination = join(dir, '.config/agent-workflow');
+  const destination = join(dir, '.config/halvard');
   installPersonal(dir, destination);
   const target = join(destination, 'package');
   fs.writeFileSync(join(target, 'README.md'), 'local change');
@@ -107,7 +107,7 @@ test('same-version repair is explicit for both installation types and refreshes 
   fs.mkdirSync(repo);
   execFileSync('git', ['init', '-q', '--initial-branch=main'], { cwd: repo });
   install(repo);
-  fs.writeFileSync(join(repo, 'plugins/agent-workflow/README.md'), 'local change');
+  fs.writeFileSync(join(repo, 'plugins/halvard/README.md'), 'local change');
   assert.throws(() => install(repo), /content differs/);
   assert.equal(installPlan(repo, { repair: true }).replace, true);
   install(repo, { repair: true });
@@ -116,7 +116,7 @@ test('same-version repair is explicit for both installation types and refreshes 
 
 test('repair refuses a different version in both installation types', (t) => {
   const dir = home(t);
-  const destination = join(dir, '.config/agent-workflow');
+  const destination = join(dir, '.config/halvard');
   installPersonal(dir, destination);
   const metadata = join(destination, 'package/package.json');
   const pkg = JSON.parse(fs.readFileSync(metadata).toString('utf8')) as PackageMetadata;
@@ -127,13 +127,13 @@ test('repair refuses a different version in both installation types', (t) => {
   fs.mkdirSync(repo);
   execFileSync('git', ['init', '-q'], { cwd: repo });
   install(repo);
-  fs.writeFileSync(join(repo, 'plugins/agent-workflow/package.json'), JSON.stringify(pkg));
+  fs.writeFileSync(join(repo, 'plugins/halvard/package.json'), JSON.stringify(pkg));
   assert.throws(() => installPlan(repo, { repair: true }), /same version/);
 });
 
 test('settings edited during package staging are preserved and installation aborts', (t) => {
   const dir = home(t);
-  const destination = join(dir, '.config/agent-workflow');
+  const destination = join(dir, '.config/halvard');
   const settings = join(dir, '.claude/settings.json');
   fs.mkdirSync(join(dir, '.claude'));
   fs.writeFileSync(settings, '{}');
@@ -159,7 +159,7 @@ test('settings edited during package staging are preserved and installation abor
 
 test('post-commit cleanup failure warns and keeps the successful installation', (t) => {
   const dir = home(t);
-  const destination = join(dir, '.config/agent-workflow');
+  const destination = join(dir, '.config/halvard');
   const remove = fs.rmSync;
   t.mock.method(fs, 'rmSync', (path: fs.PathLike, ...args: [fs.RmOptions?]) => {
     if (String(path).includes('.settings.json.workflow-')) throw new Error('cleanup fixture');

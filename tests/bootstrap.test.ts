@@ -65,7 +65,7 @@ function fixture(t: TestContext, stacks: string | null, extra: Record<string, un
   t.after(() => rmSync(root, { recursive: true, force: true }));
   execFileSync('git', ['init', '-q', '--initial-branch=feature/bootstrap'], { cwd: root });
   writeFileSync(
-    join(root, '.agent-workflow.json'),
+    join(root, '.halvard.json'),
     JSON.stringify({ version: 1, workflow: { requireReview: false, stacks }, ...extra }),
   );
   writeFileSync(join(root, 'go.mod'), 'module example.invalid/app\n');
@@ -203,7 +203,7 @@ test('bootstrap-apply writes the section, skills, required skills and stamp, the
   ]);
   assert.equal(
     readFileSync(join(root, 'AGENTS.md'), 'utf8'),
-    `${before}\n\n<!-- agent-workflow stack -->\n## Stack\n\nAlpha decisions.\n<!-- /agent-workflow stack -->\n`,
+    `${before}\n\n<!-- halvard stack -->\n## Stack\n\nAlpha decisions.\n<!-- /halvard stack -->\n`,
   );
   assert.equal(
     readFileSync(join(root, '.agents/skills/storage/SKILL.md'), 'utf8'),
@@ -232,19 +232,19 @@ test('bootstrap-apply writes the section, skills, required skills and stamp, the
   );
   assert.equal(
     readFileSync(join(root, 'AGENTS.md'), 'utf8'),
-    `${before}\n\n<!-- agent-workflow stack -->\nReplaced.\n<!-- /agent-workflow stack -->\n\nAfter the section.\n`,
+    `${before}\n\n<!-- halvard stack -->\nReplaced.\n<!-- /halvard stack -->\n\nAfter the section.\n`,
   );
   assert.deepEqual(loadProject(root).config.requiredSkills, ['existing', 'architecture']);
   assert.equal(
     bootstrapReport(root).agentsSection,
-    '<!-- agent-workflow stack -->\nReplaced.\n<!-- /agent-workflow stack -->',
+    '<!-- halvard stack -->\nReplaced.\n<!-- /halvard stack -->',
   );
 });
 
 test('bootstrap-apply creates AGENTS.md and refuses invalid plans before writing anything', (t) => {
   const root = fixture(t, null);
   const refusals: [Record<string, unknown>, RegExp][] = [
-    [{ agents: 'x <!-- agent-workflow stack --> y' }, /without section markers/],
+    [{ agents: 'x <!-- halvard stack --> y' }, /without section markers/],
     [{ agents: '  ' }, /nonempty Markdown/],
     [{ skills: [] }, /nonempty array/],
     [{ skills: [{ name: 'storage', content: skill('other'), required: false }] }, /own name/],
@@ -281,19 +281,16 @@ test('bootstrap-apply creates AGENTS.md and refuses invalid plans before writing
       .split('\n')
       .filter(Boolean)
       .sort(),
-    ['?? .agent-workflow.json', '?? go.mod'],
+    ['?? .halvard.json', '?? go.mod'],
   );
 
-  writeFileSync(
-    join(root, 'AGENTS.md'),
-    '<!-- /agent-workflow stack -->\n<!-- agent-workflow stack -->\n',
-  );
+  writeFileSync(join(root, 'AGENTS.md'), '<!-- /halvard stack -->\n<!-- halvard stack -->\n');
   assert.throws(() => bootstrapReport(root), /unmatched or repeated/);
   rmSync(join(root, 'AGENTS.md'));
   applyBootstrap(root, plan(t, root));
   assert.equal(
     readFileSync(join(root, 'AGENTS.md'), 'utf8'),
-    '<!-- agent-workflow stack -->\n## Stack\n\nAlpha decisions.\n<!-- /agent-workflow stack -->\n',
+    '<!-- halvard stack -->\n## Stack\n\nAlpha decisions.\n<!-- /halvard stack -->\n',
   );
 });
 
@@ -321,7 +318,7 @@ test('a skills-only plan leaves AGENTS.md alone, Claude gets an AGENTS.md bridge
   const linked = fixture(t, null);
   const outside = join(linked, '..', `outside-${process.pid}-${Math.random()}.json`);
   t.after(() => rmSync(outside, { force: true }));
-  linkSync(join(linked, '.agent-workflow.json'), outside);
+  linkSync(join(linked, '.halvard.json'), outside);
   const before = readFileSync(outside, 'utf8');
   assert.throws(() => applyBootstrap(linked, plan(t, linked)), /multiple hard links/);
   assert.equal(readFileSync(outside, 'utf8'), before);
@@ -484,7 +481,7 @@ test('stacks setting validates paths, doctor reports a missing directory and set
 test('bootstrap reads on protected branches and bootstrap-apply does not', async (t) => {
   const root = fixture(t, null);
   execFileSync('git', ['checkout', '-q', '-b', 'main'], { cwd: root });
-  const runner = `node ${quote(resolve(pluginRoot, 'bin/workflow.ts'))}`;
+  const runner = `node ${quote(resolve(pluginRoot, 'bin/halvard.ts'))}`;
   const decision = async (command: string) =>
     (
       await handle('claude', {
@@ -501,7 +498,7 @@ test('bootstrap reads on protected branches and bootstrap-apply does not', async
 });
 
 test('the bootstrap engine and skill name no framework or library', () => {
-  const sources = ['../core/bootstrap.ts', '../skills/flow-bootstrap/SKILL.md'].map((path) =>
+  const sources = ['../core/bootstrap.ts', '../skills/halvard-bootstrap/SKILL.md'].map((path) =>
     readFileSync(new URL(path, import.meta.url), 'utf8').toLowerCase(),
   );
   const names = [

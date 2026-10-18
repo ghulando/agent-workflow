@@ -1,9 +1,9 @@
 {
-  "name": "agent-workflow",
+  "name": "halvard",
   "version": "0.0.1",
-  "description": "Shared development workflow and guards for Pi, Claude Code and Codex",
+  "description": "Personal development assistant with workflow guards for Pi, Claude Code and Codex",
   "author": {
-    "name": "Agent Workflow contributors"
+    "name": "Halvard contributors"
   },
   "license": "MIT"
 }

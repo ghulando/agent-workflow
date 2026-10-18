@@ -35,7 +35,7 @@ export function doctor(cwd: string, author?: string) {
       if (!providers.length) issues.push(`No configured independent reviewer for ${name}.`);
     }
   }
-  const paths = [resolve(personalRoot(), 'package'), resolve(root, 'plugins/agent-workflow')];
+  const paths = [resolve(personalRoot(), 'package'), resolve(root, 'plugins/halvard')];
   const installations = paths
     .filter((path) => existsSync(path))
     .map((path) => packageStatus(pluginRoot, path));
@@ -66,7 +66,7 @@ export function doctor(cwd: string, author?: string) {
     staging.set(directory, [...(staging.get(directory) ?? []), prefix]);
   for (const path of paths) addPrefix(dirname(path), basename(path) + '.next-');
   const settings = [
-    resolve(root, '.agent-workflow.json'),
+    resolve(root, '.halvard.json'),
     resolve(root, 'CLAUDE.md'),
     resolve(root, '.pi/settings.json'),
     resolve(root, '.claude/settings.json'),
@@ -93,7 +93,7 @@ export function doctor(cwd: string, author?: string) {
   return {
     root,
     branch: currentBranch(root),
-    runner: resolve(pluginRoot, 'bin/workflow.ts'),
+    runner: resolve(pluginRoot, 'bin/halvard.ts'),
     gate: config.gate,
     requireReview: config.workflow.requireReview,
     reviewers,

@@ -68,7 +68,7 @@ export function personalInstallPlan(
   }
   claude.extraKnownMarketplaces[market] = marketplace;
   claude.enabledPlugins ??= {};
-  claude.enabledPlugins[`agent-workflow@${market}`] = true;
+  claude.enabledPlugins[`halvard@${market}`] = true;
   stage(claudePath, claude);
   const personalFile = resolve(destination, 'personal.json');
   if (!existsSync(personalFile)) {
@@ -80,9 +80,9 @@ export function personalInstallPlan(
     name: market,
     plugins: [
       {
-        name: 'agent-workflow',
+        name: 'halvard',
         source: { source: 'local', path: './package' },
-        interface: { displayName: 'Agent Workflow', shortDescription: packageInfo.description },
+        interface: { displayName: 'Halvard', shortDescription: packageInfo.description },
         policy: { installation: 'AVAILABLE', authentication: 'ON_INSTALL' },
         category: 'Productivity',
       },
@@ -90,8 +90,8 @@ export function personalInstallPlan(
   });
   const codexPath = resolve(home, '.codex/config.toml');
   const toml = existsSync(codexPath) ? readFileSync(codexPath, 'utf8') : '';
-  const heading = '[plugins."agent-workflow@ghulando"]';
-  const headings = [heading, "[plugins.'agent-workflow@ghulando']"];
+  const heading = '[plugins."halvard@ghulando"]';
+  const headings = [heading, "[plugins.'halvard@ghulando']"];
   const table = toml
     .split(/(?=^\s*\[)/m)
     .find((part) => headings.some((key) => part.trimStart().startsWith(key)));
@@ -112,10 +112,10 @@ export function personalInstallPlan(
         : { destination: source, files: [...packageInfo.files, 'package.json'] },
     commands: [
       ['claude', 'plugin', 'marketplace', 'add', source],
-      ['claude', 'plugin', 'install', 'agent-workflow@ghulando'],
+      ['claude', 'plugin', 'install', 'halvard@ghulando'],
       ['codex', 'plugin', 'marketplace', 'add', destination],
-      ...(upgrade || repairing ? [['codex', 'plugin', 'remove', 'agent-workflow@ghulando']] : []),
-      ['codex', 'plugin', 'add', 'agent-workflow@ghulando'],
+      ...(upgrade || repairing ? [['codex', 'plugin', 'remove', 'halvard@ghulando']] : []),
+      ['codex', 'plugin', 'add', 'halvard@ghulando'],
     ],
     instruction:
       'Review this plan before applying. Existing plugins and project settings are retained. Run native marketplace/install commands, then restart every open Claude Code and Codex session: a running session keeps the old plugin path and its hooks stop working. Explicitly trust hooks. Do not enable the same Pi extension both globally and per repo.',

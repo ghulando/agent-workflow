@@ -2,7 +2,7 @@
 
 ## Project and personal settings
 
-Project settings live in `.agent-workflow.json` at the Git repository root. A file in a subdirectory is ignored, and the guard protects it from edits; the root file applies. Personal settings live in `~/.config/agent-workflow/personal.json`, and `AGENT_WORKFLOW_HOME` points to another directory. Project settings win over personal ones, except that reviewers merge by provider and read-command lists add up.
+Project settings live in `.halvard.json` at the Git repository root. A file in a subdirectory is ignored, and the guard protects it from edits; the root file applies. Personal settings live in `~/.config/halvard/personal.json`, and `HALVARD_HOME` points to another directory. Project settings win over personal ones, except that reviewers merge by provider and read-command lists add up.
 
 Start from [examples/project.json](../examples/project.json), or run `setup` to get a proposal for your project. The example gate is for a Node project, so replace it for other stacks. Neither install nor setup runs the checks it detects or installs a toolchain.
 
@@ -89,7 +89,7 @@ With `transport: "pi"`, Ollama runs through Pi with tools, extensions, skills an
 
 ### Review wrapper
 
-`review` is a one-element array naming an executable inside the repository, such as `["scripts/review.sh"]`. The guard recognises it only when run from the project root exactly as `REVIEW_GATE_SESSION=<session key> scripts/review.sh <task-file> <author> <reviewer> [round]`, where the reviewer is `claude`, `codex` or `ollama` and the round is 1 to 10. The wrapper has to call the runner's `review` command itself. The runner sits in a different place for each harness install, so session context prints the wrapper call with `AGENT_WORKFLOW_RUNNER=<runner>` after the session key, and the wrapper runs `node "$AGENT_WORKFLOW_RUNNER" review ...`. The guard accepts that variable only when it names the session's own runner. Because the guard recognises the call, the wrapper can run on protected branches, and edits to it ask first. `doctor` reports a wrapper that is missing or not executable.
+`review` is a one-element array naming an executable inside the repository, such as `["scripts/review.sh"]`. The guard recognises it only when run from the project root exactly as `REVIEW_GATE_SESSION=<session key> scripts/review.sh <task-file> <author> <reviewer> [round]`, where the reviewer is `claude`, `codex` or `ollama` and the round is 1 to 10. The wrapper has to call the runner's `review` command itself. The runner sits in a different place for each harness install, so session context prints the wrapper call with `HALVARD_RUNNER=<runner>` after the session key, and the wrapper runs `node "$HALVARD_RUNNER" review ...`. The guard accepts that variable only when it names the session's own runner. Because the guard recognises the call, the wrapper can run on protected branches, and edits to it ask first. `doctor` reports a wrapper that is missing or not executable.
 
 Most projects need no wrapper. Without one, session context prints the runner's `review` command ready to run. CI and Git hooks should run the project's checks directly, because gate and review receipts live in the local session state.
 
@@ -121,7 +121,7 @@ A gate given as a list of commands runs them in order and stops at the first fai
 {"gate": [["npm", "run", "format:check"], ["npm", "test"]]}
 ```
 
-The full output of each run goes to its own `gate-<session key prefix>-<run>.log` in the task workspace of the current branch's task, or in `~/.agent-workflow/<repo>/` when the branch has no task. The runner prints one pass, fail or skip line per step, the last 40 lines of a failing step and the log path. A single command array works as one step.
+The full output of each run goes to its own `gate-<session key prefix>-<run>.log` in the task workspace of the current branch's task, or in `~/.halvard/<repo>/` when the branch has no task. The runner prints one pass, fail or skip line per step, the last 40 lines of a failing step and the log path. A single command array works as one step.
 
 ## Read commands
 
@@ -147,7 +147,7 @@ Any flag after that prefix is rejected. For a command with options, describe exa
 
 Option values must be separate arguments. The guard rejects unknown options, abbreviations, combined short flags and `--name=value`. It also rejects `--` unless the prefix includes it, because programs may forward whatever follows. Trust only executables whose options you understand. Personal entries apply in every repository.
 
-To query an existing graphify graph, add these entries to the personal `readCommands` in `~/.config/agent-workflow/personal.json`:
+To query an existing graphify graph, add these entries to the personal `readCommands` in `~/.config/halvard/personal.json`:
 
 ```json
 {
@@ -184,7 +184,7 @@ Older files may still contain `protectedPaths` or `workflow.shellApproval`. The 
 
 ## Task workspace
 
-Each task gets a private folder outside the repository for team files: `~/.agent-workflow/<repository folder name>/<task id>/`, or the same path under `AGENT_WORKFLOW_WORKSPACE` when it is set. `task-start`, `task-resume` and `task-handoff` create it with mode 0700 and print its path. They refuse an existing folder that is a symlink or that other users can read. A `.repo` file records which repository owns the folder, so a second repository with the same folder name gets an error.
+Each task gets a private folder outside the repository for team files: `~/.halvard/<repository folder name>/<task id>/`, or the same path under `HALVARD_WORKSPACE` when it is set. `task-start`, `task-resume` and `task-handoff` create it with mode 0700 and print its path. They refuse an existing folder that is a symlink or that other users can read. A `.repo` file records which repository owns the folder, so a second repository with the same folder name gets an error.
 
 Briefs, reports and findings go there, never in a harness's own scratch directory. Name each file `<writer>-<topic>.md`, where the writer is `claude`, `codex` or `pi`, for example `claude-brief-codex.md` or `pi-findings-1.md`. The guard denies a file-tool write or Codex patch to a file carrying another writer's prefix, and rejects a patch that touches both the workspace and the repository. Every agent can read every file. Shell writes to the workspace are not checked. Recorded reviews add `<reviewer>-review-round<N>.md`. The task note itself stays in the repository.
 
@@ -195,19 +195,19 @@ Claude Code and Codex may still ask before writing outside the project. `install
 From the package checkout, preview and then install into an application:
 
 ```sh
-node bin/workflow.ts install-plan /path/to/app
-node bin/workflow.ts install /path/to/app
+node bin/halvard.ts install-plan /path/to/app
+node bin/halvard.ts install /path/to/app
 ```
 
-When the package sits outside the application, `install` copies it into `plugins/agent-workflow`. It creates new settings and instruction files with mode 0600 and keeps the mode of existing ones. It merges settings, keeping existing plugins, hooks, permissions and model choices, and stops before writing anything if a registration conflicts. You still register the plugin, restart and approve hook trust in each harness. Pick either project-local or personal install per harness, or the guard runs twice.
+When the package sits outside the application, `install` copies it into `plugins/halvard`. It creates new settings and instruction files with mode 0600 and keeps the mode of existing ones. It merges settings, keeping existing plugins, hooks, permissions and model choices, and stops before writing anything if a registration conflicts. You still register the plugin, restart and approve hook trust in each harness. Pick either project-local or personal install per harness, or the guard runs twice.
 
-The marketplace used to be called `agent-workflow-local`. Before re-running `install` in a project installed under that name, delete the `agent-workflow-local` entry from `extraKnownMarketplaces` and `agent-workflow@agent-workflow-local` from `enabledPlugins` in its `.claude/settings.json`. Otherwise both names stay enabled. `install` keeps the name of an existing `.agents/plugins/marketplace.json`, because that file can list the repository's other plugins, so the Codex registration keeps working under the old name.
+Halvard used to be called `agent-workflow`. Before running `install` in a project installed under that name, delete `plugins/agent-workflow`, the `agent-workflow@<marketplace>` entry from `enabledPlugins` in its `.claude/settings.json`, the `agent-workflow` entry from `.agents/plugins/marketplace.json` and the `[plugins."agent-workflow@<marketplace>"]` table from `.codex/config.toml`. Rename `.agent-workflow.json` to `.halvard.json`. Otherwise both plugins stay enabled and the guard runs twice. `install` keeps the name of an existing `.agents/plugins/marketplace.json`, because that file can list the repository's other plugins.
 
 To repair a vendored copy you have reviewed:
 
 ```sh
-node bin/workflow.ts install-plan /path/to/app --repair
-node bin/workflow.ts install /path/to/app --repair
+node bin/halvard.ts install-plan /path/to/app --repair
+node bin/halvard.ts install /path/to/app --repair
 ```
 
 The installer stages package and settings changes and rolls them back when an IO error is reported. If the rollback fails, the backups stay and the command reports an error. A crash mid-install can leave staging or backup directories behind, so inspect them before deleting.

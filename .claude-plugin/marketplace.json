@@ -1,16 +1,16 @@
 {
   "name": "ghulando",
   "metadata": {
-    "description": "Shared workflow guards for coding harnesses"
+    "description": "Halvard, a personal development assistant for coding harnesses"
   },
   "owner": {
-    "name": "Agent Workflow contributors"
+    "name": "Halvard contributors"
   },
   "plugins": [
     {
-      "name": "agent-workflow",
+      "name": "halvard",
       "source": "./",
-      "description": "Shared repository workflow guards"
+      "description": "Personal development assistant with repository workflow guards"
     }
   ]
 }

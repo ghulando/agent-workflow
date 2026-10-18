@@ -1,5 +1,5 @@
 ---
-name: flow-verify
+name: halvard-verify
 description: Demonstrate application acceptance criteria with real behavior and project checks. Use before independent review and completion.
 ---
 
@@ -9,6 +9,6 @@ Identify launch prerequisites, readiness, isolation and cleanup before starting 
 
 Keep proof outside application sources where practical. Stop only processes you started; preserve proof artifacts and existing sessions. Record commands, results and skipped/blocked checks honestly in the task before final receipts.
 
-Run the full configured gate through the session-context command, then follow flow-review. After fixes, rerun affected checks and ensure the full gate passes on the final tree. A printed success string is not a gate receipt.
+Run the full configured gate through the session-context command, then follow halvard-review. After fixes, rerun affected checks and ensure the full gate passes on the final tree. A printed success string is not a gate receipt.
 
 Adapted from Pstack create-verification-skill and principle-prove-it-works; see ../../UPSTREAM.md.

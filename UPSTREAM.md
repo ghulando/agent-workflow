@@ -1,6 +1,6 @@
 # Adapted upstream skills
 
-The flow skills are rewritten from these pinned sources and ship with this package.
+The Halvard skills are rewritten from these pinned sources and ship with this package.
 
 | Source | Pinned commit | Used for |
 |---|---|---|
@@ -10,6 +10,6 @@ The flow skills are rewritten from these pinned sources and ship with this packa
 
 `third-party/sources.json` maps each original file to the skills adapted from it, with its SHA-256. The MIT notices are in `third-party/`.
 
-The adaptations drop Cursor-only tools, fixed model names, automatic commits and shipping, mandatory parallel agents and issue-tracker publishing. flow-write drops the asd-ste100 Python linter, because the package ships only Node.
+The adaptations drop Cursor-only tools, fixed model names, automatic commits and shipping, mandatory parallel agents and issue-tracker publishing. halvard-write drops the asd-ste100 Python linter, because the package ships only Node.
 
 To take an upstream change, fetch the new commit, compare each mapped skill, port what is useful, update the commit, hashes and this table, then rerun the behaviour checks. Installing the package never fetches upstream content.

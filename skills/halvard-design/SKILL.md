@@ -1,5 +1,5 @@
 ---
-name: flow-design
+name: halvard-design
 description: Choose interfaces, data shapes and module ownership before consequential application changes. Use when implementation would lock in an unclear architecture.
 ---
 

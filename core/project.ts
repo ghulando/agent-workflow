@@ -4,7 +4,7 @@ import { existsSync, lstatSync, readFileSync, readlinkSync, realpathSync } from 
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { flowConfig, personalConfig } from './flow-config.ts';
 
-export const CONFIG = '.agent-workflow.json';
+export const CONFIG = '.halvard.json';
 
 export function git(root: string, args: string[]) {
   return execFileSync('git', args, {

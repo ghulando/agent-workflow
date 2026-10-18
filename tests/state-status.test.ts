@@ -26,7 +26,7 @@ function repo(t: TestContext, config = {}) {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   execFileSync('git', ['init', '-q', '--initial-branch=feature/test'], { cwd: root });
   writeFileSync(
-    join(root, '.agent-workflow.json'),
+    join(root, '.halvard.json'),
     JSON.stringify({ version: 1, gate: [process.execPath, '-e', 'process.exit(0)'], ...config }),
   );
   return root;
