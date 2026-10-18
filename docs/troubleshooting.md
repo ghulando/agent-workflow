@@ -4,7 +4,7 @@ Start with `doctor --author <author>` from the project root, using the runner pa
 
 ## No workflow context or guards
 
-Register the plugin with the commands in the README install section, restart the harness and approve hook trust. A working install shows "Agent workflow is active" in the startup context.
+Register the plugin with the commands in [install](install.md), restart the harness and approve hook trust. A working install shows "Agent workflow is active" in the startup context.
 
 Codex loads the hooks named in `.codex-plugin/plugin.json`. Do not add a root `plugin.json`: it shadows those hooks. References: [OpenAI plugin packaging](https://developers.openai.com/plugins/build/plugins), [Claude plugin reference](https://code.claude.com/docs/en/plugins-reference), [Pi packages](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/packages.md).
 

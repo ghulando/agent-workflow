@@ -1,152 +1,27 @@
 # Agent Workflow
 
-One development workflow for Claude Code, Codex and Pi. Agents plan on a feature or fix branch, keep task notes under `docs/tasks/`, run your project's gate and get an independent review before a task is marked done. Hooks block work on protected branches, ask before commit, merge, push and publish, and refuse a done marker until the gate and review have passed on the current tree. Everything else runs under the harness's own permissions.
+Agent Workflow is a development workflow plugin for Claude Code, Codex and Pi. The agent works on a feature or fix branch and keeps notes in a task file. A task counts as done only after it passes your project's checks and a review by a different agent.
 
-The repository ships TypeScript only. Node runs it directly, so installing needs no build step and no `npm install`.
+## How it works
 
-## Before you start
-
-You need Node 22.18 or newer, Git, a POSIX shell, and the CLI of each harness you want to use. Check Node first, because an older Node cannot run the hooks and every tool call will be refused:
-
-```sh
-node --version   # must print v22.18.0 or newer
-git --version
-```
+There are two parts. The engine is a set of hooks that run at session start, on each prompt and around every tool call. Its guard allows only reads on `main`. It asks you before any commit, merge, push or publish. It refuses to mark a task done until the gate (the check command in `.agent-workflow.json`) and the review have both passed on the current tree. Everything else runs under the harness's own permissions. The skills are instructions that tell the agent how to plan, implement, test and review.
 
 ## Install
 
-Install in whichever harnesses you use. Each one installs straight from GitHub.
-
-The install script does this for every harness it finds on your `PATH`, and running it again updates them:
+You need Node 22.18 or newer, Git and a POSIX shell.
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/ghulando/agent-workflow/main/scripts/install.sh | sh
 ```
 
-It also removes an install under the old marketplace name. Then follow "After installing". The sections below are the same steps by hand.
+The script installs the plugin into every harness on your `PATH`. Restart open sessions and approve hook trust. [Install](docs/install.md) covers manual steps, updates, uninstalling and local clones. In a new repository, run `flow-bootstrap` and then `flow-setup`.
 
-### Claude Code
+## Solo
 
-```sh
-claude plugin marketplace add ghulando/agent-workflow
-claude plugin install agent-workflow@ghulando
-```
+Open one agent in the repository and describe the task, or call `/workflow`. The agent creates a branch and `docs/tasks/<id>.md`. For anything bigger than a small fix, it writes acceptance criteria and a plan, then stops so you can read them. Next it implements, runs the gate and sends the diff to a reviewer from another harness. A blocked review gets one fix pass and one re-review. Finally the agent shows the diff, offers a retro and asks before committing.
 
-The first command registers this repository as a plugin marketplace named `ghulando`. The second installs the plugin from it.
+## Team with Herdr
 
-### Codex
+For multi-file changes, open Herdr with Claude, Codex and Pi panes and ask the Claude pane for `flow-team`. Claude leads and writes the brief, Codex implements, and Pi investigates risky code and reviews in its own pane. The lead records Pi's verdict under the same gate and review rules. You answer design questions and handle a second blocked review. Commits still wait for your yes. The team needs `~/.agent-workflow` writable by Claude and Codex.
 
-```sh
-codex plugin marketplace add ghulando/agent-workflow
-codex plugin add agent-workflow@ghulando
-```
-
-Codex reads the same marketplace file as Claude Code, so the marketplace has the same name.
-
-### Pi
-
-```sh
-pi install git:github.com/ghulando/agent-workflow
-```
-
-Pi needs no marketplace. It loads the package's extension and skills directly.
-
-### After installing
-
-1. Restart every open Claude Code, Codex and Pi session. A running session keeps its old hooks.
-2. Approve the hook trust prompt in Claude Code and Codex when it appears.
-3. Make the task workspace writable. Team briefs and reviews go to `~/.agent-workflow`, outside your projects. Add its absolute path to `~/.claude/settings.json`:
-
-   ```json
-   { "permissions": { "additionalDirectories": ["/Users/you/.agent-workflow"] } }
-   ```
-
-   and to `~/.codex/config.toml`:
-
-   ```toml
-   [sandbox_workspace_write]
-   writable_roots = ["/Users/you/.agent-workflow"]
-   ```
-
-   Merge these into any settings you already have, and replace `/Users/you` with your home directory.
-4. Optionally create `~/.config/agent-workflow/personal.json` for personal reviewers and read commands, as described in [configuration](docs/configuration.md).
-
-Start a new session to check the install. A working install shows "Agent workflow is active" in the startup context.
-
-### Enable it in a project
-
-Run `flow-bootstrap` in a new project to write its stack rules and skills from your [stack records](docs/stacks.md), then `flow-setup`. The [flow diagram](docs/flow.md) shows the whole process. [Usage](docs/usage.md) explains solo runs, Herdr team runs and what the engine enforces.
-
-## Update
-
-Run the install script again, or by hand:
-
-```sh
-claude plugin marketplace update ghulando
-claude plugin uninstall agent-workflow@ghulando
-claude plugin install agent-workflow@ghulando
-
-codex plugin marketplace upgrade ghulando
-codex plugin remove agent-workflow@ghulando
-codex plugin add agent-workflow@ghulando
-
-pi update --extension git:github.com/ghulando/agent-workflow
-```
-
-The first command for each harness fetches the latest `main`. Claude Code and Codex cache plugins by version, so the uninstall and reinstall pick up new code even when the version number has not changed. Restart each harness afterwards, and approve hook trust again if it asks.
-
-### Moving from the old marketplace name
-
-The marketplace used to be called `agent-workflow-local`. An install under that name stays enabled next to the new one, and the guard then runs twice. The install script removes it for you. By hand, remove the old install once, then install as described above:
-
-```sh
-claude plugin uninstall agent-workflow@agent-workflow-local
-claude plugin marketplace remove agent-workflow-local
-
-codex plugin remove agent-workflow@agent-workflow-local
-codex plugin marketplace remove agent-workflow-local
-```
-
-A project that enabled the plugin in its own `.claude/settings.json` needs `claude plugin uninstall agent-workflow@agent-workflow-local --scope project`, run in that project. Codex keeps hook trust per plugin name, so it asks for trust again.
-
-## Uninstall
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/ghulando/agent-workflow/main/scripts/uninstall.sh | sh
-```
-
-The script runs on macOS and Linux. It removes the plugin from Claude Code, Codex and Pi under both marketplace names, together with its caches, the local-clone package and the workflow state in the temp directory. It also removes Codex's hook trust entries. Settings files are backed up as `<file>.agent-workflow.bak` before they are edited. Your personal config and the task workspace stay; add `--purge` (`... | sh -s -- --purge`) to remove them as well, along with the workspace entries in `additionalDirectories` and `writable_roots`. The script lists project-scope Claude installs and leaves them alone. Restart every session afterwards.
-
-## Install from a local clone
-
-Use this to run your own changes. It copies the package to `~/.config/agent-workflow/package` and installs every harness from there. Do not combine it with the GitHub install: both use the marketplace name `ghulando`, so remove the GitHub install first.
-
-```sh
-node bin/workflow.ts install-user
-node bin/workflow.ts install-user --apply
-
-claude plugin marketplace add ~/.config/agent-workflow/package
-claude plugin install agent-workflow@ghulando
-
-codex plugin marketplace add ~/.config/agent-workflow
-codex plugin add agent-workflow@ghulando
-```
-
-`install-user` previews the changes and `--apply` writes them. It registers the package with Pi in `~/.pi/agent/settings.json`, creates `personal.json` and prints the workspace settings from step 3 above. Then follow "After installing".
-
-To update a local install:
-
-```sh
-git pull
-
-node bin/workflow.ts install-user --repair
-node bin/workflow.ts install-user --repair --apply
-
-claude plugin uninstall agent-workflow@ghulando
-claude plugin install agent-workflow@ghulando
-
-codex plugin remove agent-workflow@ghulando
-codex plugin add agent-workflow@ghulando
-```
-
-`--repair` refreshes the package even when the version has not changed.
+See [usage](docs/usage.md), the [flow diagram](docs/flow.md) and [configuration](docs/configuration.md).
