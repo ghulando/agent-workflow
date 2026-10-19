@@ -166,6 +166,9 @@ const READ_VERBS = [
 
 function runnerKind(call: ParsedCommand | null) {
   if (READ_VERBS.includes(call?.verb as string)) return 'read';
+  if (call?.verb === 'team' && call.positional[0] === 'show' && !Object.keys(call.flags).length) {
+    return 'read';
+  }
   if (call?.verb === 'task-start') return 'branch';
   return null;
 }
@@ -457,12 +460,15 @@ export async function handle(harness: string | undefined, raw: unknown): Promise
         ? 'This edit changes Git metadata, harness settings, or the workflow configuration and checks.'
         : call?.verb === 'history-clean'
           ? 'This deletes harness session history. Review the plan before approving.'
-          : (action.kind === 'shell' && (approvedShipping || isShipping(action.command))) ||
-              // Codex can type a command into a shell it already started.
-              (payload.tool_name === 'write_stdin' &&
-                isShipping(String((payload.tool_input as ToolInput | undefined)?.chars ?? '')))
-            ? 'This command commits, merges, pushes or publishes. Review the exact command before approving.'
-            : undefined;
+          : (call?.verb === 'team' && call.positional[0] !== 'show') ||
+              (action.kind === 'shell' && /halvard(?:\.ts)?\S*\s+team\s+set\b/.test(action.command))
+            ? 'This changes the team in the workflow configuration.'
+            : (action.kind === 'shell' && (approvedShipping || isShipping(action.command))) ||
+                // Codex can type a command into a shell it already started.
+                (payload.tool_name === 'write_stdin' &&
+                  isShipping(String((payload.tool_input as ToolInput | undefined)?.chars ?? '')))
+              ? 'This command commits, merges, pushes or publishes. Review the exact command before approving.'
+              : undefined;
     if (!reason) return {};
     const requestTree = getTree();
     const request = digest([

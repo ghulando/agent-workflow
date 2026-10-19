@@ -24,6 +24,10 @@ const commandSpecs: Record<string, { count: number; options?: string[]; required
   doctor: { count: 0, options: ['author'] },
   gate: { count: 1 },
   approve: { count: 2 },
+  team: {
+    count: 1,
+    options: ['lead', 'dev', 'reviewer', 'investigator', 'approve', 'watch', 'nudge'],
+  },
   'history-plan': { count: 0, options: ['harness'], required: ['harness'] },
   'history-digest': { count: 0, options: ['harness'], required: ['harness'] },
   'history-clean': { count: 1, options: ['confirm'], required: ['confirm'] },

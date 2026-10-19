@@ -29,6 +29,10 @@ const help = `halvard commands (<harness> is pi, claude, codex, grok or cursor):
   history-digest --harness claude,pi,codex|all  Print compact session digests
   history-clean <plan-file> --confirm DELETE  Delete reviewed entries, skipping changed ones
   retro-events <task-id>           Print a task's workspace files and workflow events
+  team show                        Print this repository's Herdr team
+  team set --lead <harness> --dev <harness> --reviewer <harness> [--investigator <harness>|none]
+           [--watch on|off] [--nudge on|off] [--approve reads-edits-gate|none]
+                                    Save the team in .halvard.json
 `;
 
 const print = (value: unknown) => process.stdout.write(JSON.stringify(value, null, 2) + '\n');
@@ -63,6 +67,13 @@ try {
           (await approveFromTerminal(process.cwd(), positional[0]!, positional[1]!)) + '\n',
         );
         break;
+      case 'team': {
+        const { setTeam, showTeam } = await import('../core/team.ts');
+        if (positional[0] === 'show') print(showTeam(process.cwd()));
+        else if (positional[0] === 'set') print(setTeam(process.cwd(), flags));
+        else throw new Error('team takes show or set');
+        break;
+      }
       case 'retro-events': {
         const { retroEvents } = await import('../core/retro.ts');
         print(await retroEvents(process.cwd(), positional[0]!));

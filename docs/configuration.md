@@ -22,6 +22,7 @@ With no configuration, the hooks protect `main` and `master` and find skills in 
 | `readOnlyTools` | Host tool names or `*` patterns that never change project files. MCP tools (`mcp__*`) stay under the host's own permissions. |
 | `extensions` | Repository JavaScript modules exporting `pre`, `post` or both. |
 | `stack` | Written by `bootstrap-apply`: the stack record name, the stacks commit, whether the record differed from it, and the stack gate that `setup` proposes while no gate is set. See [Stack records](stacks.md). |
+| `team` | The Herdr team, see [Team](#team). |
 | `workflow` | Task, branch and review preferences. |
 
 An unknown key, an invalid value or unreadable state makes the guard deny rather than guess. In patterns, `*` matches within one path segment and `**` across segments. File-tool edits to Git metadata, workflow and harness configuration, and the configured gate, review and extension files ask you first.
@@ -187,6 +188,32 @@ They allow reads only. Halvard never builds, updates or installs graphify. Add `
 The built-in classifier also accepts pipes between readers and discard redirects such as `2>/dev/null`. Variables, `$(...)`, backticks, output files and loops make a command unclassifiable, so the guard denies it wherever only reads may run. A glob needs a literal directory prefix. `git -C` counts as a read only when it names the project root by absolute path. A `cd` before a read must stay inside the project. Git reads inside a nested repository are not reads, because that repository can supply executable Git configuration. `--help` and `--version` count as reads only for the built-in readers and for `git`, `rg`, `grep`, `find`, `sed`, `jq`, `node`, `npm` and `herdr`.
 
 Older files may still contain `protectedPaths` or `workflow.shellApproval`. The guard accepts and ignores both. On a feature branch, shell commands never ask except commit, merge, push and anything containing `publish`, `push`, `deploy`, `release` or `upload`. The guard reads the command text. It catches ordinary spellings, including `/usr/bin/git`, Git global options, chains, line continuations and `sh -c` scripts. It misses a command built in a variable or run from a script file, and shell commands can still write protected files. The hooks are guardrails for the workflow and give no OS-level protection; use the harness sandbox when you need that.
+
+## Team
+
+`halvard-team` asks for the team the first time and saves it here with `team set`. You can also write it yourself:
+
+```json
+{
+  "team": {
+    "lead": "claude",
+    "dev": "codex",
+    "reviewer": "pi",
+    "investigator": "pi",
+    "monitor": {"watch": true, "nudge": true, "approve": "reads-edits-gate"}
+  }
+}
+```
+
+`lead`, `dev` and `reviewer` are required, and each is `pi`, `claude`, `codex`, `grok` or `cursor`. The lead and the dev must differ, and the reviewer must not be the dev. `investigator` is optional; leave it out or set `null` for none. `monitor` defaults to the values above:
+
+| Setting | Effect |
+| --- | --- |
+| `watch` | The lead reads the other panes and reports progress, stalls and errors to you. |
+| `nudge` | The lead may send one short prompt to an idle worker that stopped without a report. |
+| `approve` | `reads-edits-gate`: the lead answers a worker's prompt for a read, an edit inside the repository or task workspace, or the gate. Everything else comes to you. `none`: every prompt comes to you. |
+
+Commit, merge, push and publish always come to you. `team show` prints the saved team. `team set --dev cursor` changes only the roles you name; it asks before it writes, like any edit to `.halvard.json`.
 
 ## Task workspace
 

@@ -22,6 +22,6 @@ Open one agent in the repository and describe the task, or call `/halvard`. The 
 
 ## Team with Herdr
 
-For multi-file changes, open Herdr with Claude, Codex and Pi panes and ask the Claude pane for `halvard-team`. Claude leads and writes the brief, Codex implements, and Pi investigates risky code and reviews in its own pane. The lead records Pi's verdict under the same gate and review rules. You answer design questions and handle a second blocked review. Commits still wait for your yes. The team needs `~/.halvard` writable by Claude and Codex.
+For multi-file changes, open Herdr with a pane per harness and ask the lead's pane for `halvard-team`. The first time in a repository it asks you who leads, who develops, who reviews, whether an investigator takes part, and how far the lead may watch, nudge and answer the other panes. It saves the team in `.halvard.json` and asks whether to keep it on later runs. The lead writes the brief, the dev implements, and the reviewer reviews in its own pane. The lead records the verdict under the same gate and review rules. You answer design questions and handle a second blocked review. Commits still wait for your yes. The team needs `~/.halvard` writable by every team harness.
 
 See [usage](docs/usage.md), the [flow diagram](docs/flow.md) and [configuration](docs/configuration.md).

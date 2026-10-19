@@ -131,7 +131,17 @@ export interface ProjectConfig {
   readOnlyTools: string[];
   extensions: string[];
   stack: StackStamp | null;
+  team: TeamConfig | null;
   workflow: FlowConfig;
+}
+
+export interface TeamConfig {
+  lead: Harness;
+  dev: Harness;
+  reviewer: Harness;
+  investigator: Harness | null;
+  // What the lead does with the other panes through Herdr.
+  monitor: { watch: boolean; nudge: boolean; approve: 'reads-edits-gate' | 'none' };
 }
 
 export interface Project {
