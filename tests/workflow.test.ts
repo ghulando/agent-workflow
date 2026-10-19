@@ -963,6 +963,48 @@ test('the workflow runner task commands work on protected branches', async (t) =
   );
 });
 
+test('an agent can leave a protected branch through cd and git -C spellings only', async (t) => {
+  const root = fixture(t);
+  execFileSync('git', ['checkout', '-q', '-b', 'main'], { cwd: root });
+  const other = mkdtempSync(join(tmpdir(), 'workflow-other-'));
+  t.after(() => rmSync(other, { recursive: true, force: true }));
+  execFileSync('git', ['init', '-q', '--initial-branch=main'], { cwd: other });
+  const runner = `node ${quote(resolve(pluginRoot, 'bin/halvard.ts'))}`;
+  const start = `${runner} task-start login 'Add login' --author claude --fix --small`;
+  // The fixture's files are untracked, which a new branch carries along unharmed.
+  for (const command of [
+    `cd ${quote(root)} && ${start}`,
+    `git -C ${quote(root)} switch -c fix/login`,
+    `git -C ${quote(root)} checkout -b feature/login`,
+  ]) {
+    assert.equal(
+      (await call(root, 'claude', 'PreToolUse', 'Bash', { command })).decision,
+      undefined,
+      command,
+    );
+  }
+  for (const command of [
+    `cd ${quote(other)} && ${start}`,
+    `cd ${quote(root)} && ${start} --apply`,
+    `cd ${quote(root)} && touch new.txt`,
+    `git -C ${quote(other)} switch -c fix/login`,
+    `git -C ${quote(root)} checkout source.txt`,
+    `git -C ${quote(root)} commit -m change`,
+    `git -C ${quote(root)} switch -c fix/login && touch new.txt`,
+  ]) {
+    assert.equal(
+      (await call(root, 'claude', 'PreToolUse', 'Bash', { command })).decision,
+      'deny',
+      command,
+    );
+  }
+  assert.equal(
+    (await call(root, 'claude', 'PreToolUse', 'Write', { file_path: 'new.txt', content: 'x' }))
+      .decision,
+    'deny',
+  );
+});
+
 test('a gate inside a pipeline, chain or redirect is refused before it loses its receipt', async (t) => {
   const root = fixture(t);
   execFileSync('git', ['checkout', '-q', '-b', 'feature/gate'], { cwd: root });

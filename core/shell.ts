@@ -451,7 +451,20 @@ function staysInProject(segments: string[][], root: string | undefined, cwd: str
   return true;
 }
 
-function leavesBranch(segment: string[]) {
+// git -C naming the project root runs exactly as plain git there.
+export function rootGit(segment: string[], root?: string, cwd?: string) {
+  if (!root || segment[0] !== 'git' || segment[1] !== '-C' || !segment[2]) return segment;
+  try {
+    return realpathSync(resolve(cwd ?? root, segment[2])) === root
+      ? ['git', ...segment.slice(3)]
+      : segment;
+  } catch {
+    return segment;
+  }
+}
+
+function leavesBranch(segment: string[], root?: string, cwd?: string) {
+  segment = rootGit(segment, root, cwd);
   if (segment[0]! !== 'git') return false;
   const [verb, ...args] = segment.slice(1);
   if (!['checkout', 'switch'].includes(verb!) || args.includes('--')) return false;
@@ -529,8 +542,8 @@ function classify(
   }
   if (contained && segments.every((s) => isCd(s) || isRead(s, readCommands, root))) return 'read';
   if (
-    segments.some(leavesBranch) &&
-    segments.every((s) => leavesBranch(s) || isRead(s, readCommands, root))
+    segments.some((s) => leavesBranch(s, root, cwd)) &&
+    segments.every((s) => leavesBranch(s, root, cwd) || isRead(s, readCommands, root))
   ) {
     return 'branch';
   }

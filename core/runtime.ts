@@ -37,7 +37,7 @@ import {
   projectPath,
 } from './project.ts';
 import { startupContext } from './context.ts';
-import { commands, isShipping, shellKind } from './shell.ts';
+import { commands, isShipping, rootGit, shellKind } from './shell.ts';
 import { normalize } from './tools.ts';
 import {
   HOOK_BUDGET,
@@ -79,11 +79,21 @@ export function reviewCall(key: string, harness: string, config: ProjectConfig) 
 
 function runnerCall(action: Action, root: string) {
   if (action.kind !== 'shell') return null;
-  const parts = commands(action.command);
+  let parts = commands(action.command);
+  let cwd = resolve(action.cwd);
+  // Agents often prefix the runner with a cd into the project root.
+  if (parts?.length === 2 && parts[0]![0] === 'cd' && parts[0]!.length === 2) {
+    try {
+      if (realpathSync(resolve(cwd, parts[0]![1]!)) !== root) return null;
+    } catch {
+      return null;
+    }
+    parts = parts.slice(1);
+    cwd = root;
+  }
   if (parts?.length !== 1) return null;
   const [node, runner, verb, ...args] = parts[0]!;
   if (node !== 'node' || !runner) return null;
-  const cwd = resolve(action.cwd);
   if (
     cwd !== root &&
     (!isAbsolute(runner) || !['history-plan', 'history-digest', 'history-clean'].includes(verb!))
@@ -92,7 +102,7 @@ function runnerCall(action: Action, root: string) {
   }
   try {
     if (cwd !== root && !inside(root, realpathSync(cwd))) return null;
-    const path = realpathSync(resolve(action.cwd, runner));
+    const path = realpathSync(resolve(cwd, runner));
     if (path !== realpathSync(resolve(pluginRoot, 'bin/halvard.ts'))) {
       const candidate = dirname(dirname(path));
       if (
@@ -374,12 +384,13 @@ export async function handle(harness: string | undefined, raw: unknown): Promise
     // Checkout also accepts file paths. Only existing local branch names are a
     // safe branch exemption; otherwise it could restore files on main.
     if (kind === 'branch' && action.kind === 'shell') {
-      for (const segment of commands(action.command)!) {
+      for (const written of commands(action.command)!) {
+        const segment = rootGit(written, root, action.cwd);
         if (segment[0] === 'git' && segment[1] === 'checkout' && segment.length === 3) {
           const ref = spawnSync(
             'git',
             ['show-ref', '--verify', '--quiet', `refs/heads/${segment[2]}`],
-            { cwd: action.cwd, timeout: 10000 },
+            { cwd: segment === written ? action.cwd : root, timeout: 10000 },
           );
           if (ref.status !== 0) kind = 'mutation';
         }
