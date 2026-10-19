@@ -14,6 +14,10 @@ Codex loads the hooks named in `.codex-plugin/plugin.json`. Do not add a root `p
 
 "Worktree too large to verify within the hook time budget" means fingerprinting tracked and non-ignored files took over 40 seconds. Ignore large or generated files, or move them out of the repository. The hook denies here because past the 60-second harness timeout, Claude Code and Codex would run the tool without a decision.
 
+Grok and Cursor hooks fail open when a hook crashes or times out. Halvard's Grok entries exit with code 2 on an error, which Grok treats as a denial, and its Cursor entries set `failClosed`. Cursor's CLI sends shell commands to `beforeShellExecution`; Halvard reads them there and skips them in `preToolUse`. If your Cursor CLI version does not send `preToolUse`, file edits are not guarded before they run. Check with a write on `main`, which must be denied.
+
+Cursor's edit tool can send a sketch with "existing code" markers instead of exact text. The guard cannot preview that edit. It still checks the path, and it denies such an edit to a task file, because the task file carries the done marker. Ask the agent to use an exact replacement or a whole-file write there.
+
 Register the package either per user or per project in each harness, not both. Installation does not remove old guards; remove superseded ones yourself.
 
 ## A command is denied on main or in plan mode
@@ -22,7 +26,7 @@ Protected branches and plan mode allow only reads. Start a feature or fix branch
 
 ## Approval does not take
 
-Only commit, merge, push, publish and edits to protected workflow files ask. Pi shows a dialog, Claude Code uses its native approval and Codex prints a request id to approve with `approve halvard <request-id>`. The retry must be the same operation in the same session on the same tree within ten minutes; anything else needs a new request.
+Only commit, merge, push, publish and edits to protected workflow files ask. Pi shows a dialog, Claude Code and Grok use their native approval, and Codex prints a request id to approve with `approve halvard <request-id>`. The Cursor CLI does not enforce an ask and sends no prompt hook, so Halvard denies the call and prints a command such as `node <runner> approve <session-key> <request-id>`. Run it in the repository from your own terminal, then ask the agent to retry. The guard denies that command when an agent runs it. The retry must be the same operation in the same session on the same tree within ten minutes; anything else needs a new request.
 
 ## The gate passed but completion is blocked
 

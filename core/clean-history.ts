@@ -1,5 +1,5 @@
 import type {
-  Harness,
+  HistoryHarness,
   HistoryDigest,
   HistoryEntry,
   HistoryNotice,
@@ -23,7 +23,7 @@ import { createInterface } from 'node:readline';
 import { personalRoot, workspaceRoot } from './flow-config.ts';
 import { privateDirectory } from './state.ts';
 
-const harnessNames: Harness[] = ['claude', 'pi', 'codex'];
+const harnessNames: HistoryHarness[] = ['claude', 'pi', 'codex'];
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const claudeTargets = [
   'history.jsonl',
@@ -105,12 +105,12 @@ function processList(): HistoryProcess[] {
   });
 }
 
-export function historyHarnesses(value: string): Harness[] {
+export function historyHarnesses(value: string): HistoryHarness[] {
   if (value === 'all') return [...harnessNames];
   const selected = value.split(',');
   if (
     !selected.length ||
-    selected.some((name) => !harnessNames.includes(name as Harness)) ||
+    selected.some((name) => !harnessNames.includes(name as HistoryHarness)) ||
     new Set(selected).size !== selected.length
   ) {
     throw new Error('Choose claude, pi, codex or all');
@@ -133,7 +133,7 @@ function resolvedPath(path: string): string {
   return parent === path ? path : join(resolvedPath(parent), basename(path));
 }
 
-function validateRoots(root: HistoryPlan['roots'], harnesses: Harness[]) {
+function validateRoots(root: HistoryPlan['roots'], harnesses: HistoryHarness[]) {
   const home = resolvedPath(homedir());
   const selected = [...harnesses, 'workflow'] as const;
   const canonical = Object.fromEntries(
@@ -211,7 +211,7 @@ function tree(
 }
 
 function liveState(root: HistoryPlan['roots'], active: HistoryProcess[], now: number) {
-  const pids = (name: Harness) =>
+  const pids = (name: HistoryHarness) =>
     active
       .filter((process) => {
         const command = basename(process.comm).toLowerCase();
@@ -222,7 +222,7 @@ function liveState(root: HistoryPlan['roots'], active: HistoryProcess[], now: nu
         );
       })
       .map((process) => process.pid);
-  const running = (name: Harness) => pids(name).length > 0;
+  const running = (name: HistoryHarness) => pids(name).length > 0;
   const liveClaude = new Set<string>(
     process.env.CLAUDE_CODE_SESSION_ID ? [process.env.CLAUDE_CODE_SESSION_ID] : [],
   );
@@ -368,7 +368,7 @@ export function planClean({
   harnesses,
   processes,
   now = Date.now(),
-}: { harnesses: Harness[] } & Detection): HistoryPlan {
+}: { harnesses: HistoryHarness[] } & Detection): HistoryPlan {
   if (
     !harnesses.length ||
     harnesses.some((name) => !harnessNames.includes(name)) ||
@@ -500,7 +500,7 @@ export function planClean({
     }
     return complete;
   };
-  const directory = (harness: Harness, part: string) =>
+  const directory = (harness: HistoryHarness, part: string) =>
     visit(harness, join(root[harness], part), part, true);
   if (harnesses.includes('claude')) {
     if (!stat(root.claude)?.isSymbolicLink() && !stat(projects)?.isSymbolicLink()) {
@@ -587,7 +587,11 @@ export function applyClean(planFile: string, confirm: string, detection: Detecti
     throw new Error('Invalid history plan');
   }
   const processes = [...(detection.processes ?? processList())];
-  const plan = planClean({ harnesses: value.harnesses as Harness[], ...detection, processes });
+  const plan = planClean({
+    harnesses: value.harnesses as HistoryHarness[],
+    ...detection,
+    processes,
+  });
   const saved = value as HistoryPlan;
   const changed = () => new Error('History changed since preview; generate and review a new plan');
   if (
@@ -748,11 +752,11 @@ function promptText(value: unknown): string {
 }
 
 // Session transcripts and prompt history, the files digests and retrospectives read.
-export function transcriptFiles(harnesses: Harness[]) {
+export function transcriptFiles(harnesses: HistoryHarness[]) {
   historyHarnesses(harnesses.join(','));
   const root = roots();
   validateRoots(root, harnesses);
-  const found: { harness: Harness; file: string; history: boolean }[] = [];
+  const found: { harness: HistoryHarness; file: string; history: boolean }[] = [];
   const files = (dir: string): string[] => {
     const info = stat(dir);
     if (!info || info.isSymbolicLink()) return [];
@@ -795,7 +799,7 @@ export function transcriptFiles(harnesses: Harness[]) {
 export async function digestHistory({
   harnesses,
 }: {
-  harnesses: Harness[];
+  harnesses: HistoryHarness[];
 }): Promise<HistoryDigest[]> {
   const digests: HistoryDigest[] = [];
   for (const { harness, file, history } of transcriptFiles(harnesses)) {

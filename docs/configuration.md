@@ -22,6 +22,7 @@ With no configuration, the hooks protect `main` and `master` and find skills in 
 | `readOnlyTools` | Host tool names or `*` patterns that never change project files. MCP tools (`mcp__*`) stay under the host's own permissions. |
 | `extensions` | Repository JavaScript modules exporting `pre`, `post` or both. |
 | `stack` | Written by `bootstrap-apply`: the stack record name, the stacks commit, whether the record differed from it, and the stack gate that `setup` proposes while no gate is set. See [Stack records](stacks.md). |
+| `team` | The Herdr team, see [Team](#team). |
 | `workflow` | Task, branch and review preferences. |
 
 An unknown key, an invalid value or unreadable state makes the guard deny rather than guess. In patterns, `*` matches within one path segment and `**` across segments. File-tool edits to Git metadata, workflow and harness configuration, and the configured gate, review and extension files ask you first.
@@ -41,7 +42,7 @@ An unknown key, an invalid value or unreadable state makes the guard deny rather
 | `reviewDeferrals` | Empty, see [Review deferrals](#review-deferrals) |
 | `stacks` | `null`. An absolute or `~/` path to a local clone of your [stack records](stacks.md) |
 
-List only reviewers you can run, because each one starts a CLI on your machine. An empty object for Claude or Codex uses that harness's default model. Ollama needs a model name.
+List only reviewers you can run, because each one starts a CLI on your machine. An empty object for Claude, Codex, Grok or Cursor uses that harness's default model. Ollama needs a model name.
 
 ```json
 {
@@ -49,6 +50,8 @@ List only reviewers you can run, because each one starts a CLI on your machine. 
     "reviewers": {
       "claude": {},
       "codex": {},
+      "grok": {},
+      "cursor": {},
       "ollama": {"model": "your-installed-model"}
     }
   }
@@ -59,9 +62,13 @@ The reviewer must come from a different harness than the author:
 
 | Task author | Eligible reviewers |
 | --- | --- |
-| Pi | Claude or Codex |
-| Codex | Claude or Ollama |
-| Claude | Codex or Ollama |
+| Pi | Claude, Codex, Grok or Cursor |
+| Codex | Claude, Grok, Cursor or Ollama |
+| Claude | Codex, Grok, Cursor or Ollama |
+| Grok | Claude, Codex, Cursor or Ollama |
+| Cursor | Claude, Codex, Grok or Ollama |
+
+A Grok review runs `grok --prompt-file` with the edit, shell and web tools turned off. A Cursor review runs `cursor-agent -p --mode ask`, Cursor's read-only mode.
 
 Run `doctor --author codex` to check this before you start. Two harnesses can run the same model family, so a different harness does not guarantee a different model. `requireReview: false` drops the review requirement, but the gate still has to pass.
 
@@ -182,11 +189,37 @@ The built-in classifier also accepts pipes between readers and discard redirects
 
 Older files may still contain `protectedPaths` or `workflow.shellApproval`. The guard accepts and ignores both. On a feature branch, shell commands never ask except commit, merge, push and anything containing `publish`, `push`, `deploy`, `release` or `upload`. The guard reads the command text. It catches ordinary spellings, including `/usr/bin/git`, Git global options, chains, line continuations and `sh -c` scripts. It misses a command built in a variable or run from a script file, and shell commands can still write protected files. The hooks are guardrails for the workflow and give no OS-level protection; use the harness sandbox when you need that.
 
+## Team
+
+`halvard-team` asks for the team the first time and saves it here with `team set`. You can also write it yourself:
+
+```json
+{
+  "team": {
+    "lead": "claude",
+    "dev": "codex",
+    "reviewer": "pi",
+    "investigator": "pi",
+    "monitor": {"watch": true, "nudge": true, "approve": "reads-edits-gate"}
+  }
+}
+```
+
+`lead`, `dev` and `reviewer` are required, and each is `pi`, `claude`, `codex`, `grok` or `cursor`. The lead and the dev must differ, and the reviewer must not be the dev. `investigator` is optional; leave it out or set `null` for none. `monitor` defaults to the values above:
+
+| Setting | Effect |
+| --- | --- |
+| `watch` | The lead reads the other panes and reports progress, stalls and errors to you. |
+| `nudge` | The lead may send one short prompt to an idle worker that stopped without a report. |
+| `approve` | `reads-edits-gate`: the lead answers a worker's prompt for a read, an edit inside the repository or task workspace, or the gate. Everything else comes to you. `none`: every prompt comes to you. |
+
+Commit, merge, push and publish always come to you. `team show` prints the saved team. `team set --dev cursor` changes only the roles you name; it asks before it writes, like any edit to `.halvard.json`.
+
 ## Task workspace
 
 Each task gets a private folder outside the repository for team files: `~/.halvard/<repository folder name>/<task id>/`, or the same path under `HALVARD_WORKSPACE` when it is set. `task-start`, `task-resume` and `task-handoff` create it with mode 0700 and print its path. They refuse an existing folder that is a symlink or that other users can read. A `.repo` file records which repository owns the folder, so a second repository with the same folder name gets an error.
 
-Briefs, reports and findings go there, never in a harness's own scratch directory. Name each file `<writer>-<topic>.md`, where the writer is `claude`, `codex` or `pi`, for example `claude-brief-codex.md` or `pi-findings-1.md`. The guard denies a file-tool write or Codex patch to a file carrying another writer's prefix, and rejects a patch that touches both the workspace and the repository. Every agent can read every file. Shell writes to the workspace are not checked. Recorded reviews add `<reviewer>-review-round<N>.md`. The task note itself stays in the repository.
+Briefs, reports and findings go there, never in a harness's own scratch directory. Name each file `<writer>-<topic>.md`, where the writer is `claude`, `codex`, `pi`, `grok` or `cursor`, for example `claude-brief-codex.md` or `pi-findings-1.md`. The guard denies a file-tool write or Codex patch to a file carrying another writer's prefix, and rejects a patch that touches both the workspace and the repository. Every agent can read every file. Shell writes to the workspace are not checked. Recorded reviews add `<reviewer>-review-round<N>.md`. The task note itself stays in the repository.
 
 Claude Code and Codex may still ask before writing outside the project. `install-user` prints the settings to add: the workspace path in `permissions.additionalDirectories` for Claude, and in `writable_roots` under `[sandbox_workspace_write]` for Codex.
 

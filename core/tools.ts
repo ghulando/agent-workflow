@@ -291,6 +291,21 @@ export function normalize(project: Project, payload: HookPayload): Action {
     }
     return { kind: 'files', files: [{ path, before, after }] };
   }
+  // Grok and Cursor edits without exact old and new text cannot be previewed. The path
+  // still gets the branch and protected-file checks; a task file needs a previewable edit
+  // so a completion claim cannot slip past the done proof.
+  if (name === 'OpaqueEdit') {
+    const target = input.file_path;
+    const team = outsideProject(root, cwd, target) && workspacePath(cwd, target);
+    if (team) return { kind: 'workspace', paths: [team] };
+    if (outsideProject(root, cwd, target)) return { kind: 'outside' };
+    const path = projectPath(root, cwd, target);
+    if (matches(path, config.taskFiles)) {
+      throw new Error('edit task files with an exact replacement or a whole-file write');
+    }
+    const before = readText(root, path);
+    return { kind: 'files', files: [{ path, before, after: before }] };
+  }
   // MCP servers act outside the hook's view of the project and the host
   // prompts for them natively; gate passes stay bound to the tree fingerprint.
   if (name.startsWith('mcp__')) return { kind: 'outside' };

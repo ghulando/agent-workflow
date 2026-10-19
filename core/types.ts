@@ -1,5 +1,8 @@
 // Shared contracts. Boundary assertions accompany the existing runtime checks.
-export type Harness = 'pi' | 'claude' | 'codex';
+export const HARNESSES = ['pi', 'claude', 'codex', 'grok', 'cursor'] as const;
+export type Harness = (typeof HARNESSES)[number];
+// History cleanup and retro read transcript formats known only for these hosts.
+export type HistoryHarness = 'pi' | 'claude' | 'codex';
 
 export interface HistoryProcess {
   pid: number;
@@ -7,7 +10,7 @@ export interface HistoryProcess {
 }
 
 export interface HistoryEntry {
-  harness: Harness | 'workflow';
+  harness: HistoryHarness | 'workflow';
   path: string;
   bytes: number;
   mtimeMs: number;
@@ -23,15 +26,15 @@ export interface HistoryNotice {
 
 export interface HistoryPlan {
   version: 1;
-  harnesses: Harness[];
-  roots: Record<Harness | 'workflow', string>;
+  harnesses: HistoryHarness[];
+  roots: Record<HistoryHarness | 'workflow', string>;
   entries: HistoryEntry[];
   keptLive: HistoryNotice[];
   deferred: HistoryNotice[];
 }
 
 export interface HistoryDigest {
-  harness: Harness;
+  harness: HistoryHarness;
   project: string;
   id: string;
   firstTimestamp: string | null;
@@ -62,10 +65,10 @@ export interface RetroEvents {
   files: { name: string; bytes: number; modified: string }[];
   reviews: { reviewer: string; round: number; verdict: string }[];
   retroLogs: string[];
-  events: Record<Harness, RetroHarnessEvents>;
+  events: Record<HistoryHarness, RetroHarnessEvents>;
 }
 
-export type Reviewer = 'claude' | 'codex' | 'ollama';
+export type Reviewer = 'claude' | 'codex' | 'grok' | 'cursor' | 'ollama';
 
 export interface ReviewerSettings {
   reviewer?: string | undefined;
@@ -128,7 +131,17 @@ export interface ProjectConfig {
   readOnlyTools: string[];
   extensions: string[];
   stack: StackStamp | null;
+  team: TeamConfig | null;
   workflow: FlowConfig;
+}
+
+export interface TeamConfig {
+  lead: Harness;
+  dev: Harness;
+  reviewer: Harness;
+  investigator: Harness | null;
+  // What the lead does with the other panes through Herdr.
+  monitor: { watch: boolean; nudge: boolean; approve: 'reads-edits-gate' | 'none' };
 }
 
 export interface Project {
@@ -165,6 +178,7 @@ export interface HookPayload {
   hook_event_name?: string | undefined;
   tool_name?: string | undefined;
   tool_input?: ToolInput | string | undefined;
+  tool_use_id?: unknown;
   permission_mode?: string | undefined;
   prompt?: string | undefined;
   is_error?: boolean | undefined;
@@ -188,6 +202,8 @@ export interface HookResult {
   decision?: 'deny' | 'ask';
   reason?: string;
   request?: string;
+  // The session key that holds the pending request, for hosts approved from a terminal.
+  session?: string;
   context?: string;
 }
 
@@ -262,6 +278,9 @@ export interface WorkflowState {
   pass: Receipt | null;
   pending: { id: string; tree: string; at: number } | null;
   approved: string | null;
+  // The tool call that spent the last approval. Grok can run several Halvard entries
+  // for one call; the others see the same call and do not ask again.
+  consumed?: { id: string; call: string } | null;
   gate: string | null;
   first?: ReviewRecord;
   second?: ReviewRecord;
@@ -370,9 +389,18 @@ export interface PackedArchive {
 
 export interface NativeHookOutput {
   hookSpecificOutput?: {
-    hookEventName?: string;
+    hookEventName?: string | undefined;
     permissionDecision?: string;
-    permissionDecisionReason?: string;
+    permissionDecisionReason?: string | undefined;
     additionalContext?: string;
   };
+  // Grok's top-level decision.
+  decision?: 'deny' | 'ask';
+  reason?: string | undefined;
+  // Cursor's shape.
+  continue?: boolean;
+  permission?: 'deny';
+  user_message?: string | undefined;
+  agent_message?: string | undefined;
+  additional_context?: string;
 }

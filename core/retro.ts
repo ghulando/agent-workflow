@@ -1,4 +1,4 @@
-import type { Harness, RetroCount, RetroEvents, RetroHarnessEvents } from './types.ts';
+import type { HistoryHarness, RetroCount, RetroEvents, RetroHarnessEvents } from './types.ts';
 import { createReadStream, lstatSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import { basename, isAbsolute, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -6,7 +6,7 @@ import { transcriptFiles } from './clean-history.ts';
 import { workspaceRoot } from './flow-config.ts';
 import { inside, loadProject } from './project.ts';
 
-const harnesses: Harness[] = ['claude', 'codex', 'pi'];
+const harnesses: HistoryHarness[] = ['claude', 'codex', 'pi'];
 // The workspace marker is written at task-start and the last report near done.
 const BEFORE = 10 * 60 * 1000;
 const AFTER = 60 * 60 * 1000;
@@ -230,7 +230,7 @@ export async function retroEvents(cwd: string, id: string): Promise<RetroEvents>
       harness,
       { sessions: [], denials: [], asks: [], approvals: 0, gatePasses: 0, gateFailures: [] },
     ]),
-  ) as unknown as Record<Harness, RetroHarnessEvents>;
+  ) as unknown as Record<HistoryHarness, RetroHarnessEvents>;
   for (const { harness, file, history } of transcriptFiles(harnesses)) {
     if (history) continue;
     const summary = events[harness];

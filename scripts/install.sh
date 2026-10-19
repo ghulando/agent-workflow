@@ -107,11 +107,87 @@ if command -v pi > /dev/null; then
   fi
 fi
 
+# Grok's plugin list shape: an array, or one under plugins or installed.
+grok_plugins='(Array.isArray(j) ? j : j.plugins ?? j.installed)'
+
+if command -v grok > /dev/null; then
+  echo "Grok"
+  plugins=$(grok plugin list --json)
+  expect "$plugins" "Array.isArray($grok_plugins) && $grok_plugins.every((p) => typeof (p?.name ?? p?.id) === 'string')" "grok plugin list"
+  grok plugin marketplace update "$market" || grok plugin marketplace add "$repo"
+  if has "$plugins" "$grok_plugins.some((p) => (p.name ?? p.id) === '$plugin' || (p.name ?? p.id) === '$plugin@$market')"; then
+    grok plugin update "$plugin"
+  else
+    # Installing a Grok plugin grants it hook trust, which stays your decision.
+    grok_trust="  grok plugin install $plugin --trust"
+  fi
+fi
+
+if command -v cursor-agent > /dev/null; then
+  echo "Cursor"
+  command -v git > /dev/null || {
+    echo "Git is required to install Halvard for Cursor." >&2
+    exit 1
+  }
+  cursor_root=${HALVARD_HOME:-$HOME/.config/halvard}/cursor
+  if [ -d "$cursor_root/.git" ]; then
+    git -C "$cursor_root" pull --ff-only --quiet
+  else
+    mkdir -p "$(dirname "$cursor_root")"
+    git clone --quiet --depth 1 "https://github.com/$repo.git" "$cursor_root"
+  fi
+  cursor_dir=${CURSOR_CONFIG_DIR:-$HOME/.cursor}
+  # Cursor has no CLI plugins: merge Halvard's entries into the user hooks file and
+  # link the skills. Entries from an earlier install are replaced, others are kept.
+  node -e '
+const fs = require("node:fs");
+const path = require("node:path");
+const [root, dir] = process.argv.slice(1);
+if (/["$`\\]/.test(root)) throw new Error(`unsupported characters in ${root}`);
+const ours = (entry) =>
+  typeof entry?.command === "string" && entry.command.includes("/bin/hook.ts\"") && entry.command.includes("\"$f\" cursor");
+const template = JSON.parse(fs.readFileSync(path.join(root, "hooks/cursor.json"), "utf8"));
+const file = path.join(dir, "hooks.json");
+const config = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : { version: 1, hooks: {} };
+if (!config || typeof config.hooks !== "object" || Array.isArray(config.hooks)) {
+  throw new Error(`unexpected shape in ${file}; nothing was changed for Cursor`);
+}
+if (fs.existsSync(file)) fs.copyFileSync(file, `${file}.halvard.bak`);
+for (const [event, entries] of Object.entries(config.hooks)) {
+  if (Array.isArray(entries)) config.hooks[event] = entries.filter((entry) => !ours(entry));
+}
+for (const [event, entries] of Object.entries(template.hooks)) {
+  config.hooks[event] = [
+    ...(config.hooks[event] ?? []),
+    ...entries.map((entry) => ({ ...entry, command: entry.command.replaceAll("${HALVARD_ROOT}", root) })),
+  ];
+}
+fs.mkdirSync(dir, { recursive: true });
+fs.writeFileSync(file, JSON.stringify(config, null, 2) + "\n");
+const skills = path.join(dir, "skills");
+fs.mkdirSync(skills, { recursive: true });
+for (const name of fs.readdirSync(path.join(root, "skills"))) {
+  const link = path.join(skills, name);
+  const target = path.join(root, "skills", name);
+  const stat = fs.lstatSync(link, { throwIfNoEntry: false });
+  if (stat && !stat.isSymbolicLink()) {
+    console.log(`  kept your own ${link}; Halvard did not link its ${name} skill`);
+    continue;
+  }
+  if (stat) fs.rmSync(link);
+  fs.symlinkSync(target, link);
+}
+' "$cursor_root" "$cursor_dir"
+fi
+
 workspace=${HALVARD_WORKSPACE:-$HOME/.halvard}
 cat << EOF
 
-Done. Restart every open Claude Code, Codex and Pi session, and approve hook trust when asked.
+Done. Restart every open Claude Code, Codex, Pi, Grok and Cursor session, and approve hook trust when asked.
 If you have not yet, make the task workspace writable:
   ~/.claude/settings.json  permissions.additionalDirectories: ["$workspace"]
   ~/.codex/config.toml     [sandbox_workspace_write] writable_roots = ["$workspace"]
 EOF
+if [ -n "${grok_trust-}" ]; then
+  printf '\nGrok installs a plugin only with hook trust. Review Halvard, then run:\n%s\n' "$grok_trust"
+fi

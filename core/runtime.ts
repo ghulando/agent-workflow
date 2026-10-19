@@ -8,6 +8,7 @@ import type {
   Extension,
   ToolInput,
 } from './types.ts';
+import { HARNESSES } from './types.ts';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import {
@@ -51,7 +52,7 @@ import { hasReview } from './review.ts';
 import { evaluatePolicy } from './policy.ts';
 import { parseCommand } from './cli.ts';
 import { readTask, taskWorkspace } from './tasks.ts';
-import { assignment, workspaceRoot } from './flow-config.ts';
+import { assignment, providers, workspaceRoot } from './flow-config.ts';
 import { packageDigest } from './package.ts';
 import { claimsDone, completionStatus } from './status.ts';
 
@@ -146,7 +147,7 @@ function isReview(
     p![0]! === `REVIEW_GATE_SESSION=${key}` &&
     resolve(root, p![1]!) === resolve(root, config.review[0]!) &&
     p![3]! === harness &&
-    ['claude', 'codex', 'ollama'].includes(p![4]!) &&
+    providers.includes(p![4]!) &&
     (p!.length === 5 || /^(?:[1-9]|10)$/.test(p![5]!))
   );
 }
@@ -165,6 +166,9 @@ const READ_VERBS = [
 
 function runnerKind(call: ParsedCommand | null) {
   if (READ_VERBS.includes(call?.verb as string)) return 'read';
+  if (call?.verb === 'team' && call.positional[0] === 'show' && !Object.keys(call.flags).length) {
+    return 'read';
+  }
   if (call?.verb === 'task-start') return 'branch';
   return null;
 }
@@ -200,6 +204,8 @@ function protectedPatterns(project: Project) {
     '.pi/**',
     '.claude/**',
     '.codex/**',
+    '.grok/**',
+    '.cursor/**',
     '.agents/plugins/**',
     ...config.extensions,
   ];
@@ -218,6 +224,40 @@ function protectedPatterns(project: Project) {
   return patterns;
 }
 
+const APPROVAL_STALE =
+  'Workflow approval is missing, stale or expired. Retry the original operation to request a fresh approval.';
+
+// Marks one pending request approved. The prompt hook calls it for the approval phrase;
+// `halvard approve` calls it from the user's own terminal on hosts without a prompt hook.
+function approve(root: string, key: string, id: string, deadline?: number) {
+  return withState(root, key, (state) => {
+    const pending = state.pending;
+    if (
+      !pending ||
+      pending.id !== id ||
+      pending.tree !== fingerprint(root, undefined, deadline) ||
+      Date.now() - pending.at > 600000
+    ) {
+      return APPROVAL_STALE;
+    }
+    state.approved = pending.id;
+    return `Approved workflow request ${pending.id}, once. Retry the exact original operation.`;
+  });
+}
+
+export async function approveFromTerminal(cwd: string, key: string, id: string) {
+  // The guard denies an agent's approve command; a headless reviewer never approves.
+  if (process.env.HALVARD_REVIEW === '1') {
+    throw new Error('approve runs only in your own terminal');
+  }
+  if (!/^[a-f0-9]{64}$/.test(key) || !/^[a-f0-9]{64}$/.test(id)) {
+    throw new Error('approve needs a session key and a request id');
+  }
+  const message = await approve(loadProject(cwd).root, key, id);
+  if (message === APPROVAL_STALE) throw new Error(message);
+  return message;
+}
+
 function readonlyMode(payload: HookPayload) {
   return (
     payload.permission_mode === 'plan' ||
@@ -227,7 +267,9 @@ function readonlyMode(payload: HookPayload) {
 }
 
 export async function handle(harness: string | undefined, raw: unknown): Promise<HookResult> {
-  if (!harness || !['pi', 'claude', 'codex'].includes(harness)) throw new Error('unknown harness');
+  if (!harness || !(HARNESSES as readonly string[]).includes(harness)) {
+    throw new Error('unknown harness');
+  }
   if (!raw || typeof raw !== 'object' || typeof (raw as HookPayload).cwd !== 'string') {
     throw new Error('hook requires a cwd');
   }
@@ -257,24 +299,8 @@ export async function handle(harness: string | undefined, raw: unknown): Promise
     };
   }
   if (event === 'UserPromptSubmit') {
-    return withState(root, key, (state) => {
-      const pending = state.pending;
-      if (
-        !pending ||
-        pending.id !== (approval as RegExpMatchArray)[1] ||
-        pending.tree !== fingerprint(root, undefined, deadline) ||
-        Date.now() - pending.at > 600000
-      ) {
-        return {
-          context:
-            'Workflow approval is missing, stale or expired. Retry the original operation to request a fresh approval.',
-        };
-      }
-      state.approved = pending.id;
-      return {
-        context: `Approved workflow request ${pending.id}, once. Retry the exact original operation.`,
-      };
-    });
+    const message = await approve(root, key, (approval as RegExpMatchArray)[1]!, deadline);
+    return { context: message };
   }
   if (!['PreToolUse', 'PostToolUse'].includes(event as string)) {
     throw new Error(`unsupported workflow event: ${event}`);
@@ -288,7 +314,7 @@ export async function handle(harness: string | undefined, raw: unknown): Promise
       action.paths.find((path) => !basename(path).startsWith(`${harness}-`));
     if (!foreign) return {};
     const name = basename(foreign);
-    const topic = name.replace(/^(?:pi|claude|codex)-/, '');
+    const topic = name.replace(new RegExp(`^(?:${HARNESSES.join('|')})-`), '');
     const base = workspaceRoot();
     const where =
       relative(existsSync(base) ? realpathSync(base) : base, foreign).split('/').length === 3
@@ -317,6 +343,18 @@ export async function handle(harness: string | undefined, raw: unknown): Promise
       }
     }
     return notes.length ? { context: notes.join('\n') } : {};
+  }
+
+  // Approval belongs to the user; an agent must not approve its own request.
+  if (
+    action.kind === 'shell' &&
+    (call?.verb === 'approve' ||
+      /halvard(?:\.ts)?['"]?\s+approve\s+[a-f0-9]{64}\b/.test(action.command))
+  ) {
+    return {
+      decision: 'deny',
+      reason: 'Only the user approves workflow requests. Ask the user to run the approve command.',
+    };
   }
 
   if (action.kind === 'shell' && !gate && strandedGate(action.command)) {
@@ -422,12 +460,15 @@ export async function handle(harness: string | undefined, raw: unknown): Promise
         ? 'This edit changes Git metadata, harness settings, or the workflow configuration and checks.'
         : call?.verb === 'history-clean'
           ? 'This deletes harness session history. Review the plan before approving.'
-          : (action.kind === 'shell' && (approvedShipping || isShipping(action.command))) ||
-              // Codex can type a command into a shell it already started.
-              (payload.tool_name === 'write_stdin' &&
-                isShipping(String((payload.tool_input as ToolInput | undefined)?.chars ?? '')))
-            ? 'This command commits, merges, pushes or publishes. Review the exact command before approving.'
-            : undefined;
+          : (call?.verb === 'team' && call.positional[0] !== 'show') ||
+              (action.kind === 'shell' && /halvard(?:\.ts)?\S*\s+team\s+set\b/.test(action.command))
+            ? 'This changes the team in the workflow configuration.'
+            : (action.kind === 'shell' && (approvedShipping || isShipping(action.command))) ||
+                // Codex can type a command into a shell it already started.
+                (payload.tool_name === 'write_stdin' &&
+                  isShipping(String((payload.tool_input as ToolInput | undefined)?.chars ?? '')))
+              ? 'This command commits, merges, pushes or publishes. Review the exact command before approving.'
+              : undefined;
     if (!reason) return {};
     const requestTree = getTree();
     const request = digest([
@@ -439,17 +480,21 @@ export async function handle(harness: string | undefined, raw: unknown): Promise
       requestTree,
       state.revision,
     ]);
+    const toolCall =
+      typeof payload.tool_use_id === 'string' && payload.tool_use_id ? payload.tool_use_id : null;
+    if (toolCall && state.consumed?.id === request && state.consumed.call === toolCall) return {};
     if (
       state.approved !== request ||
       state.pending?.id !== request ||
       Date.now() - state.pending.at > 600000
     ) {
       state.pending = { id: request, tree: requestTree, at: Date.now() };
-      return { decision: 'ask', reason, request };
+      return { decision: 'ask', reason, request, session: key };
     }
     // The approval is one-use. The gate receipt stays bound to its tree fingerprint.
     state.pending = null;
     state.approved = null;
+    state.consumed = toolCall ? { id: request, call: toolCall } : null;
     return {};
   });
 }

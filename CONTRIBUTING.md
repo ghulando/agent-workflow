@@ -20,6 +20,6 @@ Prettier owns TypeScript formatting; run `npm run format` before committing. Nod
 
 ## Before a release
 
-Bump the version in `package.json`, `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json` together and add a CHANGELOG entry. Run the checks on the final tree and read the packed file list, looking for private paths or details from other projects. A new document linked from README must also go in the `files` list of `package.json`.
+Bump the version in `package.json`, `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json` and `.grok-plugin/plugin.json` together and add a CHANGELOG entry. Run the checks on the final tree and read the packed file list, looking for private paths or details from other projects. A new document linked from README must also go in the `files` list of `package.json`.
 
 Load the plugin in each supported harness with hook trust approved, and check four things: the startup context appears, a read works on a protected branch, a write is denied there, and a write works on a feature branch. When hook command paths change, Claude Code and Codex ask for hook trust again; approve it by hand and never edit trust settings from code.

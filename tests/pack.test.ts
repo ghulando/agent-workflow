@@ -51,7 +51,13 @@ function fixture(t: TestContext, workflow = {}) {
       version: 1,
       gate: [process.execPath, '-e', 'process.exit(0)'],
       workflow: {
-        reviewers: { claude: {}, codex: {}, ollama: { model: 'test-model' } },
+        reviewers: {
+          claude: {},
+          codex: {},
+          grok: {},
+          cursor: {},
+          ollama: { model: 'test-model' },
+        },
         ...workflow,
       },
     }),
@@ -101,11 +107,12 @@ process.stdin.on('end', () => {
  ${mode === 'timeout' ? 'setInterval(() => {}, 1000); return;' : ''}
  ${mode === 'mutate' ? "const root = input.match(/MUTATE_ROOT=(.+)/)[1]; fs.writeFileSync(path.join(root,'source.txt'),'outside edit');" : ''}
  if (name === 'codex') fs.writeFileSync(args[args.indexOf('-o')+1], result);
- else if (name === 'claude') process.stdout.write(JSON.stringify({result:${mode === 'malformed' ? "'not-json'" : 'result'},is_error:false}));
+ else if (name === 'claude' || name === 'cursor-agent') process.stdout.write(JSON.stringify({result:${mode === 'malformed' ? "'not-json'" : 'result'},is_error:false}));
+ else if (name === 'grok') process.stdout.write(JSON.stringify({text:fs.readFileSync(args[args.indexOf('--prompt-file')+1],'utf8').includes('original') ? result : 'missing evidence'}));
  else process.stdout.write(result);
 });
 `;
-  for (const name of ['claude', 'codex', 'ollama']) {
+  for (const name of ['claude', 'codex', 'ollama', 'grok', 'cursor-agent']) {
     const file = join(dir, name);
     writeFileSync(file, script);
     chmodSync(file, 0o755);
@@ -398,7 +405,11 @@ test('personal upgrades stage a replacement and preserve preferences; same versi
     (JSON.parse(readFileSync(join(target, 'package.json'), 'utf8')) as PackageMetadata).version,
     '0.0.1',
   );
-  for (const manifest of ['.claude-plugin/plugin.json', '.codex-plugin/plugin.json']) {
+  for (const manifest of [
+    '.claude-plugin/plugin.json',
+    '.codex-plugin/plugin.json',
+    '.grok-plugin/plugin.json',
+  ]) {
     assert.equal(
       (JSON.parse(readFileSync(join(target, manifest), 'utf8')) as PackageMetadata).version,
       '0.0.1',
@@ -542,6 +553,15 @@ for (const [author, choices] of Object.entries(reviewerChoices)) {
       }
       if (reviewer === 'codex') {
         assert.equal(invocation.args[invocation.args.indexOf('--sandbox') + 1], 'read-only');
+      }
+      if (reviewer === 'cursor') {
+        assert.equal(invocation.args[invocation.args.indexOf('--mode') + 1], 'ask');
+      }
+      if (reviewer === 'grok') {
+        assert.match(
+          invocation.args[invocation.args.indexOf('--disallowed-tools') + 1]!,
+          /search_replace.*run_terminal_command/,
+        );
       }
       assert.equal(fingerprint(root), before);
       writeFileSync(join(root, 'source.txt'), 'changed after review');

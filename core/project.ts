@@ -2,7 +2,7 @@ import type { Project, ProjectConfig } from './types.ts';
 import { execFileSync } from 'node:child_process';
 import { existsSync, lstatSync, readFileSync, readlinkSync, realpathSync } from 'node:fs';
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
-import { flowConfig, personalConfig } from './flow-config.ts';
+import { flowConfig, personalConfig, teamConfig } from './flow-config.ts';
 
 export const CONFIG = '.halvard.json';
 
@@ -121,6 +121,7 @@ export function loadProject(cwd: string, proposed?: unknown): Project {
     'extensions',
     'review',
     'stack',
+    'team',
     'workflow',
   ];
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
@@ -147,8 +148,10 @@ export function loadProject(cwd: string, proposed?: unknown): Project {
     extensions: [],
     review: null,
     stack: null,
+    team: null,
     ...input,
   } as ProjectConfig;
+  if (config.team !== null) config.team = teamConfig(config.team);
   for (const key of [
     'protectedBranches',
     'taskFiles',

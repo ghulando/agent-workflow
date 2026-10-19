@@ -51,7 +51,11 @@ try {
     false,
     'package has runtime dependencies',
   );
-  for (const manifest of ['.claude-plugin/plugin.json', '.codex-plugin/plugin.json']) {
+  for (const manifest of [
+    '.claude-plugin/plugin.json',
+    '.codex-plugin/plugin.json',
+    '.grok-plugin/plugin.json',
+  ]) {
     assert.equal(
       (JSON.parse(readFileSync(join(installed, manifest), 'utf8')) as PackageMetadata).version,
       expected,
@@ -65,6 +69,7 @@ try {
     bin?: Record<string, string>;
   };
   const codexPlugin = manifest('.codex-plugin/plugin.json') as { skills?: string; hooks?: string };
+  const grokPlugin = manifest('.grok-plugin/plugin.json') as { skills?: string; hooks?: string };
   const marketplace = manifest('.claude-plugin/marketplace.json') as {
     plugins?: { source?: string }[];
   };
@@ -75,10 +80,17 @@ try {
     ...(marketplace.plugins ?? []).map((plugin) => plugin.source!),
     codexPlugin.skills!,
     codexPlugin.hooks!,
+    grokPlugin.skills!,
+    grokPlugin.hooks!,
   ];
-  for (const hooks of ['hooks/hooks.json', 'hooks/codex.json']) {
+  for (const hooks of [
+    'hooks/hooks.json',
+    'hooks/codex.json',
+    'hooks/grok.json',
+    'hooks/cursor.json',
+  ]) {
     for (const match of readFileSync(join(installed, hooks), 'utf8').matchAll(
-      /\$\{(?:CLAUDE_)?PLUGIN_ROOT\}\/([\w./-]+)/g,
+      /\$\{(?:CLAUDE_|GROK_)?(?:PLUGIN|HALVARD)_ROOT\}\/([\w./-]+)/g,
     )) {
       targets.push(match[1]!);
     }
@@ -123,7 +135,7 @@ try {
   const { handle } = (await import(
     join(installed, 'core/runtime.ts')
   )) as typeof import('../core/runtime.ts');
-  for (const harness of ['pi', 'claude', 'codex']) {
+  for (const harness of ['pi', 'claude', 'codex', 'grok', 'cursor']) {
     const result = await handle(harness, {
       cwd: app,
       session_id: 'packed-verification',
@@ -152,7 +164,7 @@ try {
   );
   if (suite.status !== 0) throw new Error(suite.stdout + suite.stderr);
   console.log(
-    'Packed TypeScript installed in a fresh Git repo; all three configurations and guards passed; installed package tests passed.',
+    'Packed TypeScript installed in a fresh Git repo; all project configurations and every harness guard passed; installed package tests passed.',
   );
 } finally {
   if (previous === undefined) {

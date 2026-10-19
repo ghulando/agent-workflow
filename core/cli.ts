@@ -1,4 +1,6 @@
 import type { ParsedCommand } from './types.ts';
+import { HARNESSES } from './types.ts';
+import { AUTHOR_ERROR } from './flow-config.ts';
 
 // Shared CLI grammar: the runner and hooks accept the same options and ordering.
 const commandSpecs: Record<string, { count: number; options?: string[]; required?: string[] }> = {
@@ -21,6 +23,11 @@ const commandSpecs: Record<string, { count: number; options?: string[]; required
   'review-recover': { count: 1, options: ['stopped-reviewer'] },
   doctor: { count: 0, options: ['author'] },
   gate: { count: 1 },
+  approve: { count: 2 },
+  team: {
+    count: 1,
+    options: ['lead', 'dev', 'reviewer', 'investigator', 'approve', 'watch', 'nudge'],
+  },
   'history-plan': { count: 0, options: ['harness'], required: ['harness'] },
   'history-digest': { count: 0, options: ['harness'], required: ['harness'] },
   'history-clean': { count: 1, options: ['confirm'], required: ['confirm'] },
@@ -63,12 +70,15 @@ export function parseCommand(verb: string, args: string[]): ParsedCommand {
   for (const key of spec.required ?? []) {
     if (!result.flags[key]) throw new Error(`missing --${key}`);
   }
-  if (result.flags.author && !['pi', 'claude', 'codex'].includes(result.flags.author as string)) {
-    throw new Error('author must be pi, codex or claude');
+  if (
+    result.flags.author &&
+    !(HARNESSES as readonly string[]).includes(result.flags.author as string)
+  ) {
+    throw new Error(AUTHOR_ERROR);
   }
   if (
     result.flags.reviewer &&
-    !['claude', 'codex', 'ollama', 'pi'].includes(result.flags.reviewer as string)
+    ![...HARNESSES, 'ollama'].includes(result.flags.reviewer as string)
   ) {
     throw new Error('invalid reviewer');
   }

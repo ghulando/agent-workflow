@@ -7,9 +7,11 @@ Read the task and diff. Walk project invariants before handing off. Select a con
 
 | Author | Reviewer |
 |---|---|
-| Pi | Claude Code or Codex |
-| Codex | Ollama or Claude Code |
-| Claude Code | Ollama or Codex |
+| Pi | Claude Code, Codex, Grok or Cursor |
+| Codex | Ollama, Claude Code, Grok or Cursor |
+| Claude Code | Ollama, Codex, Grok or Cursor |
+| Grok | Ollama, Claude Code, Codex or Cursor |
+| Cursor | Ollama, Claude Code, Codex or Grok |
 
 When workflow.reviewers assigns the author a reviewer, session context prints it and the runner accepts only that one; it may be the author's own harness with an explicit model, in solo headless review only; a pane reviewer is never the author. Every round after the first uses the reviewer of the round before it.
 

@@ -47,9 +47,22 @@ pi install git:github.com/ghulando/halvard
 
 Pi needs no marketplace. It loads the package's extension and skills directly.
 
+### Grok
+
+```sh
+grok plugin marketplace add ghulando/halvard
+grok plugin install halvard --trust
+```
+
+Grok reads the same marketplace. `--trust` grants the plugin's hooks trust, so the install script does not run the second command for you: it prints it. Grok also loads Claude Code plugins and `~/.cursor/hooks.json`. Every Halvard entry it loads guards as Grok, and one approval covers all of them.
+
+### Cursor
+
+The Cursor CLI (`cursor-agent`) has no plugin command. Use the install script. It clones this repository to `~/.config/halvard/cursor`, adds Halvard's entries to `~/.cursor/hooks.json` and links the skills into `~/.cursor/skills`. Entries and skill folders of your own stay. The hooks file is backed up as `hooks.json.halvard.bak` first.
+
 ### After installing
 
-1. Restart every open Claude Code, Codex and Pi session. A running session keeps its old hooks.
+1. Restart every open Claude Code, Codex, Pi, Grok and Cursor session. A running session keeps its old hooks.
 2. Approve the hook trust prompt in Claude Code and Codex when it appears.
 3. Make the task workspace writable. Team briefs and reviews go to `~/.halvard`, outside your projects. Add its absolute path to `~/.claude/settings.json`:
 
@@ -83,7 +96,12 @@ codex plugin remove halvard@ghulando
 codex plugin add halvard@ghulando
 
 pi update --extension git:github.com/ghulando/halvard
+
+grok plugin marketplace update ghulando
+grok plugin update halvard
 ```
+
+For Cursor, run the install script again. It pulls the clone and rewrites Halvard's hook entries.
 
 The first command for each harness fetches the latest `main`. Claude Code and Codex cache plugins by version, so the uninstall and reinstall pick up new code even when the version number has not changed. Restart each harness afterwards, and approve hook trust again if it asks.
 
@@ -122,7 +140,7 @@ Task files created before the rename carry an `agent-workflow` marker, so start 
 curl -fsSL https://raw.githubusercontent.com/ghulando/halvard/main/scripts/uninstall.sh | sh
 ```
 
-The script runs on macOS and Linux. It removes the plugin from Claude Code, Codex and Pi, and the earlier `agent-workflow` install under both of its marketplace names, together with its caches, the local-clone package and the workflow state in the temp directory. It also removes Codex's hook trust entries. Settings files are backed up as `<file>.halvard.bak` before they are edited. Your personal config and the task workspace stay; add `--purge` (`... | sh -s -- --purge`) to remove them as well, along with the workspace entries in `additionalDirectories` and `writable_roots`. The script lists project-scope Claude installs and leaves them alone. Restart every session afterwards.
+The script runs on macOS and Linux. It removes the plugin from Claude Code, Codex, Pi and Grok, Halvard's entries and skill links from `~/.cursor`, and the earlier `agent-workflow` install under both of its marketplace names, together with its caches, the local-clone package and the workflow state in the temp directory. It also removes Codex's hook trust entries. Settings files are backed up as `<file>.halvard.bak` before they are edited. Your personal config and the task workspace stay; add `--purge` (`... | sh -s -- --purge`) to remove them as well, along with the workspace entries in `additionalDirectories` and `writable_roots`. The script lists project-scope Claude installs and leaves them alone. Restart every session afterwards.
 
 ## Install from a local clone
 
