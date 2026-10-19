@@ -5,6 +5,8 @@ description: Reproduce and diagnose an application bug or performance regression
 
 Build a tight feedback loop for the exact symptom: failing test, HTTP request, CLI fixture, browser script or captured replay. Run it and observe failure before claiming a cause. A different nearby failure does not reproduce this bug.
 
+For a UI or runtime symptom, get the console and network evidence, or reproduce in the real runtime, before naming a cause. A spec that mocks the failing layer cannot reproduce the bug, and a dev build can hide errors the production build throws.
+
 Minimize the scenario while preserving the symptom. For intermittent bugs, measure and raise the reproduction rate rather than claiming determinism. For performance, establish a measured baseline first.
 
 Form a small set of falsifiable hypotheses. Change one variable per probe, using targeted instrumentation. Redact secrets from commands, logs and artifacts. If reproduction requires unavailable access, report the evidence gap and ask for it.
