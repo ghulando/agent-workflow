@@ -11,7 +11,7 @@ Use [halvard-team](../halvard-team/SKILL.md) only when the user explicitly asks 
 
 Read AGENTS.md, CLAUDE.md if present, .halvard.json and the task. Inspect the branch and existing changes. Never stash, reset, restore, clean or switch a dirty tree to manufacture a baseline.
 
-Substantial tasks use [halvard-spec](../halvard-spec/SKILL.md) for observable acceptance criteria and a short plan before coding. Small, clear fixes proceed directly. Use `node <plugin-root>/bin/halvard.ts task-start <id> '<title>' --author <pi|codex|claude>`; add `--fix` for fixes and `--small` for small tasks. The command creates the configured branch from the configured base only on a clean tree. Preserve existing work and ask how tasks should be separated when it blocks a new branch.
+Substantial tasks use [halvard-spec](../halvard-spec/SKILL.md) for observable acceptance criteria and a short plan before coding. Small, clear fixes proceed directly. Use `node <plugin-root>/bin/halvard.ts task-start <id> '<title>' --author <pi|codex|claude|grok|cursor>`; add `--fix` for fixes and `--small` for small tasks. The command creates the configured branch from the configured base only on a clean tree. Preserve existing work and ask how tasks should be separated when it blocks a new branch.
 
 For existing work, use `task-resume <task-file>` and [halvard-handoff](../halvard-handoff/SKILL.md). Recorded progress is context to verify, not proof.
 

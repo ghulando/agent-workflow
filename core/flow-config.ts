@@ -1,14 +1,21 @@
 import type { FlowConfig, ReadCommand } from './types.ts';
+import { HARNESSES } from './types.ts';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 
-export const authors = ['pi', 'codex', 'claude'];
+export const authors: string[] = [...HARNESSES];
+export const AUTHOR_ERROR = `author must be ${authors.join(', ')}`;
+
+// Headless review providers: each runs a CLI on this machine.
+export const providers = ['claude', 'codex', 'grok', 'cursor', 'ollama'];
 
 export const reviewerChoices: Record<string, string[]> = {
-  pi: ['claude', 'codex'],
-  codex: ['ollama', 'claude'],
-  claude: ['ollama', 'codex'],
+  pi: ['claude', 'codex', 'grok', 'cursor'],
+  codex: ['ollama', 'claude', 'grok', 'cursor'],
+  claude: ['ollama', 'codex', 'grok', 'cursor'],
+  grok: ['ollama', 'claude', 'codex', 'cursor'],
+  cursor: ['ollama', 'claude', 'codex', 'grok'],
 };
 
 export const assignment = (workflow: FlowConfig, author: string) =>
@@ -189,7 +196,7 @@ export function flowConfig(input: unknown = {}): FlowConfig {
     const name = assigned ? settings.reviewer! : key;
     if (assigned) {
       if (!authors.includes(key)) throw new Error(`reviewer assignment for unknown author ${key}`);
-      if (typeof name !== 'string' || !['claude', 'codex', 'ollama'].includes(name)) {
+      if (typeof name !== 'string' || !providers.includes(name)) {
         throw new Error(`invalid reviewer for author ${key}`);
       }
       if (name === key ? !settings.model : !reviewerChoices[key]!.includes(name)) {
@@ -199,7 +206,7 @@ export function flowConfig(input: unknown = {}): FlowConfig {
             : `${name} cannot review work by ${key}`,
         );
       }
-    } else if (!['claude', 'codex', 'ollama'].includes(key)) {
+    } else if (!providers.includes(key)) {
       throw new Error('invalid reviewer');
     }
     if (

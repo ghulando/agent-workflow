@@ -1,6 +1,6 @@
 # Halvard
 
-Halvard is a personal development assistant for Claude Code, Codex and Pi. The name is Old Norse for "rock guardian": it guards your repositories and runs the work with you. The agent works on a feature or fix branch and keeps notes in a task file. A task counts as done only after it passes your project's checks and a review by a different agent.
+Halvard is a personal development assistant for Claude Code, Codex, Pi, Grok Build and the Cursor CLI. The name is Old Norse for "rock guardian": it guards your repositories and runs the work with you. The agent works on a feature or fix branch and keeps notes in a task file. A task counts as done only after it passes your project's checks and a review by a different agent.
 
 ## How it works
 
@@ -14,7 +14,7 @@ You need Node 22.18 or newer, Git and a POSIX shell.
 curl -fsSL https://raw.githubusercontent.com/ghulando/halvard/main/scripts/install.sh | sh
 ```
 
-The script installs the plugin into every harness on your `PATH`. Restart open sessions and approve hook trust. [Install](docs/install.md) covers manual steps, updates, uninstalling and local clones. In a new repository, run `halvard-bootstrap` and then `halvard-setup`.
+The script installs the plugin into every harness on your `PATH`. Restart open sessions and approve hook trust. For Grok it prints the one install command you run yourself, because that command grants hook trust. [Install](docs/install.md) covers manual steps, updates, uninstalling and local clones. In a new repository, run `halvard-bootstrap` and then `halvard-setup`.
 
 ## Solo
 

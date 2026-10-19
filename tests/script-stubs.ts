@@ -41,12 +41,17 @@ export const lists = (
   'pi-list': piList,
 });
 
-// Runs scripts/<name> with stub claude, codex and pi CLIs and a throwaway HOME and TMPDIR.
+// Runs scripts/<name> with stub claude, codex and pi CLIs, plus any extra stubs, and a
+// throwaway HOME and TMPDIR.
 export function runScript(
   t: TestContext,
   name: string,
   fixtures: Fixtures,
-  { args = [], prepare }: { args?: string[]; prepare?: (home: string, tmp: string) => void } = {},
+  {
+    args = [],
+    prepare,
+    extra = [],
+  }: { args?: string[]; prepare?: (home: string, tmp: string) => void; extra?: string[] } = {},
 ) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-script-')));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -55,7 +60,7 @@ export function runScript(
   const home = join(dir, 'home');
   const tmp = join(dir, 'tmp');
   for (const path of [bin, data, home, tmp]) mkdirSync(path);
-  for (const cli of ['claude', 'codex', 'pi']) {
+  for (const cli of ['claude', 'codex', 'pi', ...extra]) {
     writeFileSync(join(bin, cli), stub);
     chmodSync(join(bin, cli), 0o755);
   }

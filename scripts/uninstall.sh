@@ -31,6 +31,7 @@ pi_sources="git:github.com/ghulando/halvard git:github.com/ghulando/agent-workfl
 claude_dir=${CLAUDE_CONFIG_DIR:-$home/.claude}
 codex_dir=${CODEX_HOME:-$home/.codex}
 pi_dir=${PI_CODING_AGENT_DIR:-$home/.pi/agent}
+cursor_dir=${CURSOR_CONFIG_DIR:-$home/.cursor}
 personal=${HALVARD_HOME:-$home/.config/halvard}
 old_personal=$home/.config/agent-workflow
 workspace=${HALVARD_WORKSPACE:-$home/.halvard}
@@ -54,7 +55,7 @@ expect() {
 }
 
 # Harness CLIs edit these files too, so copy them before any command runs.
-for file in "$claude_dir/settings.json" "$codex_dir/config.toml"; do
+for file in "$claude_dir/settings.json" "$codex_dir/config.toml" "$cursor_dir/hooks.json"; do
   if [ -f "$file" ]; then
     cp "$file" "$file.halvard.bak"
     echo "Backed up $file to $file.halvard.bak"
@@ -116,6 +117,20 @@ if command -v pi > /dev/null; then
       pi remove "$source"
     fi
   done
+fi
+
+if command -v grok > /dev/null; then
+  echo "Grok"
+  plugins=$(grok plugin list --json)
+  grok_plugins='(Array.isArray(j) ? j : j.plugins ?? j.installed)'
+  expect "$plugins" "Array.isArray($grok_plugins) && $grok_plugins.every((p) => typeof (p?.name ?? p?.id) === 'string')" "grok plugin list"
+  # Grok names an installed plugin by its own name, without the marketplace.
+  for plugin in halvard agent-workflow; do
+    if has "$plugins" "$grok_plugins.some((p) => (p.name ?? p.id ?? '').split('@')[0] === '$plugin')"; then
+      grok plugin uninstall "$plugin" --confirm
+    fi
+  done
+  grok plugin marketplace remove ghulando/halvard || echo "  remove the ghulando marketplace in Grok's /plugins if it is still listed"
 fi
 
 echo "Settings"
@@ -197,6 +212,38 @@ edit(`${codexDir}/config.toml`, (text) => {
 });
 ' "$claude_dir" "$codex_dir" "$workspace" "$purge" "$ids" "$markets"
 
+# Cursor: drop Halvard's entries from the user hooks file and its skill links.
+node -e '
+const fs = require("node:fs");
+const path = require("node:path");
+const [dir, root] = process.argv.slice(1);
+const ours = (entry) =>
+  typeof entry?.command === "string" && entry.command.includes("/bin/hook.ts\"") && entry.command.includes("\"$f\" cursor");
+const file = path.join(dir, "hooks.json");
+if (fs.existsSync(file)) {
+  const config = JSON.parse(fs.readFileSync(file, "utf8"));
+  let changed = false;
+  for (const [event, entries] of Object.entries(config?.hooks ?? {})) {
+    if (!Array.isArray(entries) || !entries.some(ours)) continue;
+    config.hooks[event] = entries.filter((entry) => !ours(entry));
+    if (!config.hooks[event].length) delete config.hooks[event];
+    changed = true;
+  }
+  if (changed) {
+    fs.writeFileSync(file, JSON.stringify(config, null, 2) + "\n");
+    console.log(`  edited ${file}`);
+  }
+}
+const skills = path.join(dir, "skills");
+for (const name of fs.existsSync(skills) ? fs.readdirSync(skills) : []) {
+  const link = path.join(skills, name);
+  if (fs.lstatSync(link).isSymbolicLink() && fs.readlinkSync(link).startsWith(`${root}/`)) {
+    fs.rmSync(link);
+    console.log(`  removed ${link}`);
+  }
+}
+' "$cursor_dir" "$personal/cursor"
+
 echo "Files"
 tmp=$(node -p 'require("node:os").tmpdir()')
 remove() {
@@ -223,6 +270,7 @@ done
 remove "$pi_dir/git/github.com/ghulando/halvard"
 remove "$pi_dir/git/github.com/ghulando/agent-workflow"
 remove "$personal/package"
+remove "$personal/cursor"
 remove "$personal/.agents"
 remove "$old_personal/package"
 remove "$old_personal/.agents"
@@ -235,7 +283,7 @@ fi
 
 cat << EOF
 
-Done. Restart every open Claude Code, Codex and Pi session.
+Done. Restart every open Claude Code, Codex, Pi, Grok and Cursor session.
 Repositories set up with "halvard.ts install <repo>" keep their own plugins/halvard
 copy and settings; remove those in each repository.
 EOF

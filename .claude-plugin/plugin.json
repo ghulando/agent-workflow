@@ -1,7 +1,7 @@
 {
   "name": "halvard",
   "version": "0.0.1",
-  "description": "Personal development assistant with workflow guards for Pi, Claude Code and Codex",
+  "description": "Personal development assistant with workflow guards for Pi, Claude Code, Codex, Grok and Cursor",
   "author": {
     "name": "Halvard contributors"
   },

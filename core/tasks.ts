@@ -2,7 +2,7 @@ import type { Project, Task, TaskMetadata } from './types.ts';
 import { lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { basename, dirname, resolve } from 'node:path';
-import { authors, eligibleReviewers, workspaceRoot } from './flow-config.ts';
+import { AUTHOR_ERROR, authors, eligibleReviewers, workspaceRoot } from './flow-config.ts';
 import { currentBranch, git, loadProject, projectPath, readText } from './project.ts';
 import { privateDirectory } from './state.ts';
 
@@ -68,7 +68,7 @@ export function startTask(
   if (typeof title !== 'string' || !title.trim() || title.length > 512 || /[\r\n\0]/.test(title)) {
     throw new Error('invalid task title');
   }
-  if (!authors.includes(author)) throw new Error('author must be pi, codex or claude');
+  if (!authors.includes(author)) throw new Error(AUTHOR_ERROR);
   if (config.workflow.requireReview && !eligibleReviewers(config.workflow, author).length) {
     throw new Error(
       `no configured independent reviewer for ${author}; configure Claude/Codex/Ollama as appropriate or explicitly disable required review`,
@@ -115,7 +115,7 @@ export function resumeTask(cwd: string, path: string) {
 export function handoffTask(cwd: string, path: string, author: string) {
   const project = loadProject(cwd);
   const task = readTask(project, path);
-  if (!authors.includes(author)) throw new Error('author must be pi, codex or claude');
+  if (!authors.includes(author)) throw new Error(AUTHOR_ERROR);
   const metadata = { ...task.metadata, author, reviewCycle: randomUUID() };
   const content = task.content.replace(
     /^<!-- halvard (.+) -->$/m,

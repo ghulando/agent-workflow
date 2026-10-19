@@ -6,6 +6,7 @@ import type {
   ReviewVerdict,
   ReviewerSettings,
 } from './types.ts';
+import { HARNESSES } from './types.ts';
 import { spawn, spawnSync } from 'node:child_process';
 import {
   chmodSync,
@@ -71,6 +72,34 @@ export function reviewCommand(
       '-',
     ];
   }
+  if (reviewer === 'grok') {
+    // Grok's headless mode does not read stdin; the evidence goes in as a prompt file.
+    return [
+      'grok',
+      '--prompt-file',
+      input,
+      '--output-format',
+      'json',
+      '--disallowed-tools',
+      'search_replace,write_file,run_terminal_command,web_search,web_fetch,spawn_subagent',
+      '--no-subagents',
+      '--disable-web-search',
+      ...(settings.model ? ['-m', settings.model] : []),
+    ];
+  }
+  if (reviewer === 'cursor') {
+    // Ask mode is Cursor's read-only mode; the evidence arrives on stdin and in the input file.
+    return [
+      'cursor-agent',
+      '-p',
+      '--mode',
+      'ask',
+      '--output-format',
+      'json',
+      ...model,
+      `Review the evidence on standard input (also saved at ${input}) and return only the requested JSON verdict.`,
+    ];
+  }
   if (reviewer === 'ollama' && settings.model) {
     if (settings.transport === 'pi') {
       return [
@@ -95,6 +124,18 @@ export function reviewCommand(
     return ['ollama', 'run', settings.model];
   }
   throw new Error('unsupported or unconfigured reviewer');
+}
+
+// Grok and Cursor print one JSON result object in headless JSON mode.
+export function hostResult(reviewer: 'grok' | 'cursor', stdout: string) {
+  const envelope = JSON.parse(stdout) as { is_error?: unknown; result?: unknown; text?: unknown };
+  const text = reviewer === 'grok' ? (envelope.text ?? envelope.result) : envelope.result;
+  if (envelope.is_error || typeof text !== 'string') {
+    throw new Error(
+      `${reviewer === 'grok' ? 'Grok' : 'Cursor'} did not produce a successful review`,
+    );
+  }
+  return text;
 }
 
 export function reviewSnapshot(project: Project, task: Task) {
@@ -408,7 +449,7 @@ export async function runReview(
   // Only a headless reviewer, whose verdict comes from its output, may share the author's harness.
   if (
     pane
-      ? !['pi', 'codex', 'claude'].includes(reviewer) || reviewer === author
+      ? !(HARNESSES as readonly string[]).includes(reviewer) || reviewer === author
       : !reviewerChoices[author]?.includes(reviewer) && reviewer !== assigned
   ) {
     throw new Error(`reviewer ${reviewer} is not independent of author ${author}`);
@@ -544,6 +585,7 @@ export async function runReview(
         text = envelope.result;
         models = Object.keys(envelope.modelUsage ?? {});
       }
+      if (reviewer === 'grok' || reviewer === 'cursor') text = hostResult(reviewer, text);
     }
     const verdict = parseVerdict(text, deferrals);
     if (fingerprint(root) !== before) {

@@ -1,6 +1,15 @@
 import type { TestContext } from 'node:test';
 import type { Fixtures } from './script-stubs.ts';
 import assert from 'node:assert/strict';
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  readlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { join } from 'node:path';
 import test from 'node:test';
 import { lists, runScript } from './script-stubs.ts';
 
@@ -102,4 +111,118 @@ test('install script stops when a listing command fails', (t) => {
   const result = run(t, { ...lists([], [], [], [], ''), 'pi-list.fail': '' });
   assert.notEqual(result.status, 0);
   assert.ok(!result.calls.some((call) => call.startsWith('pi ')));
+});
+
+const empty = lists([], [], [], [], 'User packages:\n');
+
+test('install script registers Grok and leaves hook trust to the user', (t) => {
+  const fresh = runScript(
+    t,
+    'install.sh',
+    { ...empty, 'grok-plugin-list---json': '[]' },
+    {
+      extra: ['grok'],
+    },
+  );
+  assert.equal(fresh.status, 0, fresh.stderr);
+  assert.deepEqual(
+    fresh.calls.filter((call) => call.startsWith('grok')),
+    ['grok plugin marketplace update ghulando'],
+  );
+  // The plugin itself is installed only by the user, because it grants hook trust.
+  assert.match(fresh.stdout, /grok plugin install halvard --trust/);
+  const update = runScript(
+    t,
+    'install.sh',
+    {
+      ...empty,
+      'grok-plugin-list---json': JSON.stringify({ plugins: [{ name: 'halvard' }] }),
+      'grok-plugin-marketplace-update-ghulando.fail': '',
+    },
+    { extra: ['grok'] },
+  );
+  assert.equal(update.status, 0, update.stderr);
+  assert.deepEqual(
+    update.calls.filter((call) => call.startsWith('grok')),
+    [
+      'grok plugin marketplace update ghulando',
+      'grok plugin marketplace add ghulando/halvard',
+      'grok plugin update halvard',
+    ],
+  );
+  assert.doesNotMatch(update.stdout, /--trust/);
+});
+
+test('install script stops before Grok changes on unexpected output', (t) => {
+  const result = runScript(
+    t,
+    'install.sh',
+    { ...empty, 'grok-plugin-list---json': '{}' },
+    {
+      extra: ['grok'],
+    },
+  );
+  assert.notEqual(result.status, 0);
+  assert.ok(!result.calls.some((call) => call.startsWith('grok')));
+  assert.match(result.stderr, /Unexpected output from grok plugin list/);
+});
+
+// A Cursor clone from an earlier install; the git stub stands in for the pull.
+function cursorClone(home: string) {
+  const root = join(home, '.config/halvard/cursor');
+  for (const dir of ['.git', 'hooks', 'skills/halvard', 'skills/halvard-spec']) {
+    mkdirSync(join(root, dir), { recursive: true });
+  }
+  writeFileSync(
+    join(root, 'hooks/cursor.json'),
+    readFileSync(new URL('../hooks/cursor.json', import.meta.url), 'utf8'),
+  );
+  return root;
+}
+
+test('install script merges Cursor hooks, keeps other entries and links the skills', (t) => {
+  let root = '';
+  const result = runScript(t, 'install.sh', empty, {
+    extra: ['cursor-agent', 'git'],
+    prepare: (home) => {
+      root = cursorClone(home);
+      mkdirSync(join(home, '.cursor/skills/halvard-spec'), { recursive: true });
+      writeFileSync(
+        join(home, '.cursor/hooks.json'),
+        JSON.stringify({
+          version: 1,
+          hooks: {
+            preToolUse: [
+              { command: 'audit.sh' },
+              { command: 'f="/old/bin/hook.ts"; node "$f" cursor', failClosed: true },
+            ],
+          },
+        }),
+      );
+    },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.calls.at(-1), `git -C ${root} pull --ff-only --quiet`);
+  const cursorDir = join(result.home, '.cursor');
+  const hooks = JSON.parse(readFileSync(join(cursorDir, 'hooks.json'), 'utf8')) as {
+    hooks: Record<string, { command: string; failClosed?: boolean }[]>;
+  };
+  // The user's own entry stays; the earlier Halvard entry is replaced by the current one.
+  assert.equal(hooks.hooks.preToolUse!.length, 2);
+  assert.equal(hooks.hooks.preToolUse![0]!.command, 'audit.sh');
+  assert.ok(hooks.hooks.preToolUse![1]!.command.startsWith(`f="${root}/bin/hook.ts"`));
+  assert.equal(hooks.hooks.preToolUse![1]!.failClosed, true);
+  assert.deepEqual(Object.keys(hooks.hooks).sort(), [
+    'afterShellExecution',
+    'beforeShellExecution',
+    'beforeSubmitPrompt',
+    'postToolUse',
+    'preToolUse',
+    'sessionStart',
+  ]);
+  assert.ok(existsSync(join(cursorDir, 'hooks.json.halvard.bak')));
+  assert.equal(readlinkSync(join(cursorDir, 'skills/halvard')), join(root, 'skills/halvard'));
+  // A skill directory of the user's own is kept.
+  assert.equal(lstatSync(join(cursorDir, 'skills/halvard-spec')).isDirectory(), true);
+  assert.match(result.stdout, /kept your own .*halvard-spec/);
 });

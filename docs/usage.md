@@ -6,7 +6,7 @@ Halvard has two parts. The engine is code that runs on every tool call whether o
 
 Use one agent for most work: docs, one-file fixes, small features.
 
-1. Open Claude Code, Codex or Pi in the repository and describe the task, or call `/halvard` with it.
+1. Open Claude Code, Codex, Pi, Grok or Cursor in the repository and describe the task, or call `/halvard` with it.
 2. The agent runs `task-start`, which needs a clean tree and creates `feature/<id>` and `docs/tasks/<id>.md`. Keep one task per branch. A second task on the same branch puts the first task's commits into the second task's review.
 3. For anything beyond a small fix, the agent writes acceptance criteria and a plan into the task file and stops. Read them. This is the cheapest place to correct a wrong assumption.
 4. The agent implements, runs the gate and updates the task notes.

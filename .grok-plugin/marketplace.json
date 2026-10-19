@@ -1,0 +1,16 @@
+{
+  "name": "ghulando",
+  "metadata": {
+    "description": "Halvard, a personal development assistant for coding harnesses"
+  },
+  "owner": {
+    "name": "Halvard contributors"
+  },
+  "plugins": [
+    {
+      "name": "halvard",
+      "source": "./",
+      "description": "Personal development assistant with repository workflow guards"
+    }
+  ]
+}

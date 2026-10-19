@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { parseCommand } from '../core/cli.ts';
-import { runGate } from '../core/runtime.ts';
+import { approveFromTerminal, runGate } from '../core/runtime.ts';
 
-const help = `halvard commands:
+const help = `halvard commands (<harness> is pi, claude, codex, grok or cursor):
   install-plan <repo> [--repair]    Preview project installation
   install <repo> [--repair]         Install repo adapters, preserving settings
   install-user                    Preview personal installation
@@ -13,17 +13,18 @@ const help = `halvard commands:
   setup-apply <repo> <proposal>     Apply a reviewed, current proposal
   bootstrap <repo>                 Print stack records and repo state as JSON
   bootstrap-apply <repo> <plan>     Apply a confirmed, current bootstrap plan
-  task-start <id> <title> --author pi|codex|claude [--fix] [--small]
+  task-start <id> <title> --author <harness> [--fix] [--small]
   task-resume <task-file>           Read portable task and current worktree
-  task-handoff <task-file> --author pi|codex|claude
-  review <task-file> --author pi|codex|claude --reviewer claude|codex|ollama --round <number> --gate-session <session-key>
-  review <task-file> --author pi|codex|claude --reviewer pi|codex|claude --round <number> --gate-session <session-key> --pane
+  task-handoff <task-file> --author <harness>
+  review <task-file> --author <harness> --reviewer claude|codex|grok|cursor|ollama --round <number> --gate-session <session-key>
+  review <task-file> --author <harness> --reviewer <harness> --round <number> --gate-session <session-key> --pane
                                     Record a team pane's <reviewer>-verdict-round<N>.json
-  doctor [--author pi|codex|claude] Diagnose configuration and install drift
+  doctor [--author <harness>]      Diagnose configuration and install drift
   review-recover <task-file>       Recover a stopped review without erasing reports
   review-recover <task-file> --stopped-reviewer  Attest a stopped reviewer with missing PID
   review-status <task-file>         Show recorded independent reviews
   gate <session-key>               Run configured checks for this session
+  approve <session-key> <request>  Approve one guarded operation; run it in your own terminal
   history-plan --harness claude,pi,codex|all  Preview history and save a private plan
   history-digest --harness claude,pi,codex|all  Print compact session digests
   history-clean <plan-file> --confirm DELETE  Delete reviewed entries, skipping changed ones
@@ -56,6 +57,11 @@ try {
       }
       case 'gate':
         await runGate(process.cwd(), positional[0]!);
+        break;
+      case 'approve':
+        process.stdout.write(
+          (await approveFromTerminal(process.cwd(), positional[0]!, positional[1]!)) + '\n',
+        );
         break;
       case 'retro-events': {
         const { retroEvents } = await import('../core/retro.ts');

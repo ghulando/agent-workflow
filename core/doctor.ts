@@ -2,7 +2,7 @@ import type { PackageMetadata } from './types.ts';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import { homedir } from 'node:os';
-import { authors, eligibleReviewers, personalRoot } from './flow-config.ts';
+import { AUTHOR_ERROR, authors, eligibleReviewers, personalRoot } from './flow-config.ts';
 import { currentBranch, loadProject } from './project.ts';
 import { packageStatus } from './package.ts';
 import { pluginRoot } from './runtime.ts';
@@ -10,7 +10,7 @@ import { stacksDirectory } from './bootstrap.ts';
 
 export function doctor(cwd: string, author?: string) {
   if (author !== undefined && !authors.includes(author)) {
-    throw new Error('author must be pi, codex or claude');
+    throw new Error(AUTHOR_ERROR);
   }
   const { root, config } = loadProject(cwd);
   const issues = [];

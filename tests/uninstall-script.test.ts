@@ -1,7 +1,7 @@
 import type { TestContext } from 'node:test';
 import type { Fixtures } from './script-stubs.ts';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
 import { lists, runScript } from './script-stubs.ts';
@@ -206,4 +206,51 @@ test('uninstall script rejects unknown or extra arguments', (t) => {
     assert.deepEqual(result.calls, []);
     assert.ok(!existsSync(join(result.home, '.claude/settings.json.halvard.bak')));
   }
+});
+
+test('uninstall script removes Halvard from Grok and Cursor and keeps the rest', (t) => {
+  const ownHook = { command: 'audit.sh' };
+  const result = runScript(
+    t,
+    'uninstall.sh',
+    {
+      ...installed,
+      'grok-plugin-list---json': JSON.stringify([{ name: 'halvard' }, { name: 'other' }]),
+    },
+    {
+      extra: ['grok'],
+      prepare: (home, tmp) => {
+        prepare(home, tmp);
+        const root = join(home, '.config/halvard/cursor');
+        mkdirSync(join(root, 'skills/halvard'), { recursive: true });
+        mkdirSync(join(home, '.cursor/skills/mine'), { recursive: true });
+        symlinkSync(join(root, 'skills/halvard'), join(home, '.cursor/skills/halvard'));
+        writeFileSync(
+          join(home, '.cursor/hooks.json'),
+          JSON.stringify({
+            version: 1,
+            hooks: {
+              preToolUse: [ownHook, { command: `f="${root}/bin/hook.ts"; node "$f" cursor` }],
+              sessionStart: [{ command: `f="${root}/bin/hook.ts"; node "$f" cursor` }],
+            },
+          }),
+        );
+      },
+    },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  const grok = result.calls.filter((call) => call.startsWith('grok'));
+  assert.deepEqual(grok, [
+    'grok plugin uninstall halvard --confirm',
+    'grok plugin marketplace remove ghulando/halvard',
+  ]);
+  const { home } = result;
+  assert.deepEqual(JSON.parse(readFileSync(join(home, '.cursor/hooks.json'), 'utf8')), {
+    version: 1,
+    hooks: { preToolUse: [ownHook] },
+  });
+  assert.ok(existsSync(join(home, '.cursor/hooks.json.halvard.bak')));
+  assert.ok(!existsSync(join(home, '.cursor/skills/halvard')));
+  assert.ok(existsSync(join(home, '.cursor/skills/mine')));
+  assert.ok(!existsSync(join(home, '.config/halvard/cursor')));
 });

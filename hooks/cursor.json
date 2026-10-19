@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [{ "command": "f=\"${HALVARD_ROOT}/bin/hook.ts\"; [ -f \"$f\" ] || { echo \"halvard hook is missing at $f; rerun the Halvard installer\" >&2; exit 2; }; node \"$f\" cursor || { s=$?; [ $s -eq 2 ] && exit 2; echo \"halvard hook could not run (exit $s)\" >&2; exit 2; }", "timeout": 60 }],
+    "beforeSubmitPrompt": [{ "command": "f=\"${HALVARD_ROOT}/bin/hook.ts\"; [ -f \"$f\" ] || { echo \"halvard hook is missing at $f; rerun the Halvard installer\" >&2; exit 2; }; node \"$f\" cursor || { s=$?; [ $s -eq 2 ] && exit 2; echo \"halvard hook could not run (exit $s)\" >&2; exit 2; }", "timeout": 60 }],
+    "preToolUse": [{ "command": "f=\"${HALVARD_ROOT}/bin/hook.ts\"; [ -f \"$f\" ] || { echo \"halvard hook is missing at $f; rerun the Halvard installer\" >&2; exit 2; }; node \"$f\" cursor || { s=$?; [ $s -eq 2 ] && exit 2; echo \"halvard hook could not run (exit $s)\" >&2; exit 2; }", "timeout": 60, "failClosed": true }],
+    "beforeShellExecution": [{ "command": "f=\"${HALVARD_ROOT}/bin/hook.ts\"; [ -f \"$f\" ] || { echo \"halvard hook is missing at $f; rerun the Halvard installer\" >&2; exit 2; }; node \"$f\" cursor || { s=$?; [ $s -eq 2 ] && exit 2; echo \"halvard hook could not run (exit $s)\" >&2; exit 2; }", "timeout": 60, "failClosed": true }],
+    "postToolUse": [{ "command": "f=\"${HALVARD_ROOT}/bin/hook.ts\"; [ -f \"$f\" ] || { echo \"halvard hook is missing at $f; rerun the Halvard installer\" >&2; exit 2; }; node \"$f\" cursor || { s=$?; [ $s -eq 2 ] && exit 2; echo \"halvard hook could not run (exit $s)\" >&2; exit 2; }", "timeout": 60 }],
+    "afterShellExecution": [{ "command": "f=\"${HALVARD_ROOT}/bin/hook.ts\"; [ -f \"$f\" ] || { echo \"halvard hook is missing at $f; rerun the Halvard installer\" >&2; exit 2; }; node \"$f\" cursor || { s=$?; [ $s -eq 2 ] && exit 2; echo \"halvard hook could not run (exit $s)\" >&2; exit 2; }", "timeout": 60 }]
+  }
+}
