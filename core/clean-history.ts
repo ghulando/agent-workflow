@@ -560,9 +560,7 @@ export function planClean({
 }
 
 export function saveCleanPlan(plan: HistoryPlan) {
-  const dir = privateDirectory(
-    join(tmpdir(), `agent-workflow-history-${process.getuid?.() ?? 'user'}`),
-  );
+  const dir = privateDirectory(join(tmpdir(), `halvard-history-${process.getuid?.() ?? 'user'}`));
   const path = join(dir, `${randomUUID()}.json`);
   writeFileSync(path, JSON.stringify(plan, null, 2) + '\n', { mode: 0o600, flag: 'wx' });
   return path;

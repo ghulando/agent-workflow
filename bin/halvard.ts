@@ -2,7 +2,7 @@
 import { parseCommand } from '../core/cli.ts';
 import { runGate } from '../core/runtime.ts';
 
-const help = `agent-workflow commands:
+const help = `halvard commands:
   install-plan <repo> [--repair]    Preview project installation
   install <repo> [--repair]         Install repo adapters, preserving settings
   install-user                    Preview personal installation
@@ -176,6 +176,6 @@ try {
     }
   }
 } catch (err) {
-  process.stderr.write(`agent-workflow: ${(err as Error).message}\n`);
+  process.stderr.write(`halvard: ${(err as Error).message}\n`);
   process.exitCode = 1;
 }

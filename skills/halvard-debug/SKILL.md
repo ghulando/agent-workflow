@@ -1,5 +1,5 @@
 ---
-name: flow-debug
+name: halvard-debug
 description: Reproduce and diagnose an application bug or performance regression before fixing its cause. Use for failures, incorrect behavior or unexplained slowness.
 ---
 

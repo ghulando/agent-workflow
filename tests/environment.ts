@@ -4,31 +4,31 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 
 // Personal preferences must not alter fixtures or packaged-install verification.
-const previous = process.env.AGENT_WORKFLOW_HOME;
+const previous = process.env.HALVARD_HOME;
 const home = mkdtempSync(join(tmpdir(), 'workflow-suite-personal-'));
 
-process.env.AGENT_WORKFLOW_HOME = home;
+process.env.HALVARD_HOME = home;
 
 after(() => {
   if (previous === undefined) {
-    delete process.env.AGENT_WORKFLOW_HOME;
+    delete process.env.HALVARD_HOME;
   } else {
-    process.env.AGENT_WORKFLOW_HOME = previous;
+    process.env.HALVARD_HOME = previous;
   }
   rmSync(home, { recursive: true, force: true });
 });
 
 // Task commands create team workspaces; keep them out of the real home directory.
-const previousWorkspace = process.env.AGENT_WORKFLOW_WORKSPACE;
+const previousWorkspace = process.env.HALVARD_WORKSPACE;
 const workspace = mkdtempSync(join(tmpdir(), 'workflow-suite-workspace-'));
 
-process.env.AGENT_WORKFLOW_WORKSPACE = workspace;
+process.env.HALVARD_WORKSPACE = workspace;
 
 after(() => {
   if (previousWorkspace === undefined) {
-    delete process.env.AGENT_WORKFLOW_WORKSPACE;
+    delete process.env.HALVARD_WORKSPACE;
   } else {
-    process.env.AGENT_WORKFLOW_WORKSPACE = previousWorkspace;
+    process.env.HALVARD_WORKSPACE = previousWorkspace;
   }
   rmSync(workspace, { recursive: true, force: true });
 });

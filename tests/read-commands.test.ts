@@ -103,7 +103,7 @@ for (const harness of ['pi', 'claude', 'codex']) {
     t.after(() => rmSync(root, { recursive: true, force: true }));
     execFileSync('git', ['init', '-q', '--initial-branch=main'], { cwd: root });
     writeFileSync(
-      join(root, '.agent-workflow.json'),
+      join(root, '.halvard.json'),
       JSON.stringify({ gate: [process.execPath, '-e', 'process.exit(0)'] }),
     );
     const key = sessionKey(root, harness, 'reads');

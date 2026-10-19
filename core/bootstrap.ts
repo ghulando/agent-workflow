@@ -24,8 +24,8 @@ import { skills } from './context.ts';
 import { proposeSetup } from './setup.ts';
 
 const AGENTS = 'AGENTS.md';
-const START = '<!-- agent-workflow stack -->';
-const END = '<!-- /agent-workflow stack -->';
+const START = '<!-- halvard stack -->';
+const END = '<!-- /halvard stack -->';
 const NAME = /^[a-z0-9][a-z0-9-]*$/;
 
 export const HEADINGS = [

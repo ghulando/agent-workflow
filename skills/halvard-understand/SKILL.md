@@ -1,5 +1,5 @@
 ---
-name: flow-understand
+name: halvard-understand
 description: Trace an unfamiliar subsystem and investigate what a proposed change could break. Use before changing unfamiliar code or explaining runtime behavior and ownership.
 ---
 

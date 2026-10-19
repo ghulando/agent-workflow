@@ -46,7 +46,7 @@ function fixture(t: TestContext, workflow = {}) {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   execFileSync('git', ['init', '-q', '--initial-branch=main'], { cwd: root });
   writeFileSync(
-    join(root, '.agent-workflow.json'),
+    join(root, '.halvard.json'),
     JSON.stringify({
       version: 1,
       gate: [process.execPath, '-e', 'process.exit(0)'],
@@ -176,16 +176,16 @@ test('setup detects mixed applications, preserves conventions, and stale proposa
 
 test('personal defaults are overridden per project and invalid reviewer settings fail closed', (t) => {
   const home = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-personal-')));
-  const previous = process.env.AGENT_WORKFLOW_HOME;
+  const previous = process.env.HALVARD_HOME;
   t.after(() => {
     if (previous === undefined) {
-      delete process.env.AGENT_WORKFLOW_HOME;
+      delete process.env.HALVARD_HOME;
     } else {
-      process.env.AGENT_WORKFLOW_HOME = previous;
+      process.env.HALVARD_HOME = previous;
     }
     rmSync(home, { recursive: true, force: true });
   });
-  process.env.AGENT_WORKFLOW_HOME = home;
+  process.env.HALVARD_HOME = home;
   writeFileSync(
     join(home, 'personal.json'),
     JSON.stringify({
@@ -213,16 +213,16 @@ test('personal defaults are overridden per project and invalid reviewer settings
 
 test('setup proposals keep personal defaults out of the repo and personal read commands apply to every repo', async (t) => {
   const home = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-personal-')));
-  const previous = process.env.AGENT_WORKFLOW_HOME;
+  const previous = process.env.HALVARD_HOME;
   t.after(() => {
     if (previous === undefined) {
-      delete process.env.AGENT_WORKFLOW_HOME;
+      delete process.env.HALVARD_HOME;
     } else {
-      process.env.AGENT_WORKFLOW_HOME = previous;
+      process.env.HALVARD_HOME = previous;
     }
     rmSync(home, { recursive: true, force: true });
   });
-  process.env.AGENT_WORKFLOW_HOME = home;
+  process.env.HALVARD_HOME = home;
   writeFileSync(
     join(home, 'personal.json'),
     JSON.stringify({ featurePrefix: 'personal/', readCommands: [['graphify', 'query']] }),
@@ -292,11 +292,9 @@ test('setup proposals keep personal defaults out of the repo and personal read c
     positionals: { min: 1, max: 1 },
   };
   writeFileSync(join(home, 'personal.json'), JSON.stringify({ readCommands: [entry] }));
-  const project = JSON.parse(
-    readFileSync(join(root, '.agent-workflow.json'), 'utf8'),
-  ) as ProjectConfig;
+  const project = JSON.parse(readFileSync(join(root, '.halvard.json'), 'utf8')) as ProjectConfig;
   project.readCommands = [['inspect', '--list']];
-  writeFileSync(join(root, '.agent-workflow.json'), JSON.stringify(project));
+  writeFileSync(join(root, '.halvard.json'), JSON.stringify(project));
   assert.deepEqual(loadProject(root).config.readCommands, [['inspect', '--list'], entry]);
   assert.equal((await bash('herdr agent read X --lines 400')).decision, undefined);
   assert.equal((await bash('inspect --list X')).decision, undefined);
@@ -305,12 +303,12 @@ test('setup proposals keep personal defaults out of the repo and personal read c
     writeFileSync(join(home, 'personal.json'), JSON.stringify({ readCommands }));
     assert.throws(() => loadProject(root), /read command|readCommands/);
   }
-  mkdirSync(join(home, 'agent-workflow'));
+  mkdirSync(join(home, 'halvard'));
   writeFileSync(
-    join(home, 'agent-workflow/personal.json'),
+    join(home, 'halvard/personal.json'),
     JSON.stringify({ readCommands: [['graphify', 'query']] }),
   );
-  assert.doesNotThrow(() => personalInstallPlan(home, join(home, 'agent-workflow')));
+  assert.doesNotThrow(() => personalInstallPlan(home, join(home, 'halvard')));
 });
 
 test('personal install preview preserves unrelated plugins and permissions without writing files', (t) => {
@@ -324,13 +322,13 @@ test('personal install preview preserves unrelated plugins and permissions witho
       permissions: { deny: ['Read(.env)'] },
     }),
   );
-  const plan = personalInstallPlan(home, join(home, '.config/agent-workflow'));
+  const plan = personalInstallPlan(home, join(home, '.config/halvard'));
   const settings = JSON.parse(
     plan.writes.find((w) => w.path.endsWith('.claude/settings.json'))!.content,
   ) as HarnessSettings & { permissions?: unknown };
   assert.equal(settings.enabledPlugins!['example-plugin@example-marketplace'], true);
   assert.deepEqual(settings.permissions, { deny: ['Read(.env)'] });
-  assert.equal(settings.enabledPlugins!['agent-workflow@ghulando'], true);
+  assert.equal(settings.enabledPlugins!['halvard@ghulando'], true);
   assert.equal(existsSync(join(home, '.pi')), false);
   assert.equal(existsSync(plan.copy!.destination), false);
 });
@@ -338,11 +336,11 @@ test('personal install preview preserves unrelated plugins and permissions witho
 test('personal install commands register Claude for fresh and existing installations', (t) => {
   const home = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-claude-install-')));
   t.after(() => rmSync(home, { recursive: true, force: true }));
-  const destination = join(home, '.config/agent-workflow');
+  const destination = join(home, '.config/halvard');
   const source = join(destination, 'package');
   const expected = [
     ['claude', 'plugin', 'marketplace', 'add', source],
-    ['claude', 'plugin', 'install', 'agent-workflow@ghulando'],
+    ['claude', 'plugin', 'install', 'halvard@ghulando'],
   ];
   assert.deepEqual(
     personalInstallPlan(home, destination).commands.filter((command) => command[0] === 'claude'),
@@ -357,17 +355,17 @@ test('personal install commands register Claude for fresh and existing installat
 
 test('personal upgrades stage a replacement and preserve preferences; same versions skip copying', (t) => {
   const home = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-upgrade-')));
-  const destination = join(home, '.config/agent-workflow');
+  const destination = join(home, '.config/halvard');
   const target = join(destination, 'package');
-  const previous = process.env.AGENT_WORKFLOW_HOME;
+  const previous = process.env.HALVARD_HOME;
   const previousHome = process.env.HOME;
   process.env.HOME = home;
-  process.env.AGENT_WORKFLOW_HOME = destination;
+  process.env.HALVARD_HOME = destination;
   t.after(() => {
     if (previous === undefined) {
-      delete process.env.AGENT_WORKFLOW_HOME;
+      delete process.env.HALVARD_HOME;
     } else {
-      process.env.AGENT_WORKFLOW_HOME = previous;
+      process.env.HALVARD_HOME = previous;
     }
     if (previousHome === undefined) {
       delete process.env.HOME;
@@ -379,7 +377,7 @@ test('personal upgrades stage a replacement and preserve preferences; same versi
   mkdirSync(target, { recursive: true });
   writeFileSync(
     join(target, 'package.json'),
-    JSON.stringify({ name: 'agent-workflow', version: '0.2.2' }),
+    JSON.stringify({ name: 'halvard', version: '0.2.2' }),
   );
   writeFileSync(join(target, 'obsolete.txt'), 'old package');
   const personal = '{"reviewTimeout":120,"readCommands":[["inspect"]]}\n';
@@ -390,10 +388,10 @@ test('personal upgrades stage a replacement and preserve preferences; same versi
   assert.ok(plan.copy);
   assert.deepEqual(plan.commands, [
     ['claude', 'plugin', 'marketplace', 'add', target],
-    ['claude', 'plugin', 'install', 'agent-workflow@ghulando'],
+    ['claude', 'plugin', 'install', 'halvard@ghulando'],
     ['codex', 'plugin', 'marketplace', 'add', destination],
-    ['codex', 'plugin', 'remove', 'agent-workflow@ghulando'],
-    ['codex', 'plugin', 'add', 'agent-workflow@ghulando'],
+    ['codex', 'plugin', 'remove', 'halvard@ghulando'],
+    ['codex', 'plugin', 'add', 'halvard@ghulando'],
   ]);
   installPersonal();
   assert.equal(
@@ -436,10 +434,10 @@ test('personal upgrades stage a replacement and preserve preferences; same versi
 test('a failed staged personal upgrade leaves the installed package and settings intact', (t) => {
   const home = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-upgrade-failure-')));
   t.after(() => rmSync(home, { recursive: true, force: true }));
-  const destination = join(home, '.config/agent-workflow');
+  const destination = join(home, '.config/halvard');
   const target = join(destination, 'package');
   mkdirSync(target, { recursive: true });
-  const old = '{"name":"agent-workflow","version":"0.2.2"}\n';
+  const old = '{"name":"halvard","version":"0.2.2"}\n';
   writeFileSync(join(target, 'package.json'), old);
   writeFileSync(join(target, 'working.txt'), 'still working');
   writeFileSync(join(destination, 'personal.json'), '{}\n');
@@ -467,10 +465,10 @@ test('a failed staged personal upgrade leaves the installed package and settings
 test('a failed personal package swap restores the previous directory', (t) => {
   const home = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-upgrade-swap-')));
   t.after(() => rmSync(home, { recursive: true, force: true }));
-  const destination = join(home, '.config/agent-workflow');
+  const destination = join(home, '.config/halvard');
   const target = join(destination, 'package');
   mkdirSync(target, { recursive: true });
-  const old = '{"name":"agent-workflow","version":"0.2.2"}\n';
+  const old = '{"name":"halvard","version":"0.2.2"}\n';
   writeFileSync(join(target, 'package.json'), old);
   const rename = fs.renameSync;
   let renames = 0;
@@ -494,15 +492,15 @@ test('personal installation recognizes an equivalent single-quoted Codex plugin 
   const home = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-user-toml-')));
   t.after(() => rmSync(home, { recursive: true, force: true }));
   mkdirSync(join(home, '.codex'));
-  const toml = "[plugins.'agent-workflow@ghulando']\nenabled = true\n";
+  const toml = "[plugins.'halvard@ghulando']\nenabled = true\n";
   writeFileSync(join(home, '.codex/config.toml'), toml);
-  const plan = personalInstallPlan(home, join(home, '.config/agent-workflow'));
+  const plan = personalInstallPlan(home, join(home, '.config/halvard'));
   assert.equal(
     plan.writes.some((write) => write.path.endsWith('.codex/config.toml')),
     false,
   );
   writeFileSync(join(home, '.codex/config.toml'), toml.replace('true', 'false'));
-  assert.throws(() => personalInstallPlan(home, join(home, '.config/agent-workflow')), /disabled/);
+  assert.throws(() => personalInstallPlan(home, join(home, '.config/halvard')), /disabled/);
 });
 
 for (const [author, choices] of Object.entries(reviewerChoices)) {
@@ -695,16 +693,16 @@ test('reviewer assignments are validated and a project assignment replaces a per
   }
   flowConfig({ reviewers: { codex: { reviewer: 'ollama', model: 'm', transport: 'pi' } } });
   const home = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-personal-')));
-  const previous = process.env.AGENT_WORKFLOW_HOME;
+  const previous = process.env.HALVARD_HOME;
   t.after(() => {
     if (previous === undefined) {
-      delete process.env.AGENT_WORKFLOW_HOME;
+      delete process.env.HALVARD_HOME;
     } else {
-      process.env.AGENT_WORKFLOW_HOME = previous;
+      process.env.HALVARD_HOME = previous;
     }
     rmSync(home, { recursive: true, force: true });
   });
-  process.env.AGENT_WORKFLOW_HOME = home;
+  process.env.HALVARD_HOME = home;
   writeFileSync(
     join(home, 'personal.json'),
     JSON.stringify({
@@ -982,7 +980,7 @@ process.stdin.on('end', () => {
 }
 
 function defer(root: string, task: string, deferrals: Record<string, unknown>[]) {
-  const file = join(root, '.agent-workflow.json');
+  const file = join(root, '.halvard.json');
   const config = JSON.parse(readFileSync(file, 'utf8')) as { workflow: Record<string, unknown> };
   config.workflow.reviewDeferrals = { [task]: deferrals };
   writeFileSync(file, JSON.stringify(config));
@@ -1209,14 +1207,12 @@ test('review cannot start with a missing or stale gate receipt', async (t) => {
 test('review snapshot includes required bundled skills outside the repository', (t) => {
   const root = fixture(t);
   const created = start(root);
-  const config = JSON.parse(
-    readFileSync(join(root, '.agent-workflow.json'), 'utf8'),
-  ) as ProjectConfig;
-  config.requiredSkills = ['workflow'];
-  writeFileSync(join(root, '.agent-workflow.json'), JSON.stringify(config));
+  const config = JSON.parse(readFileSync(join(root, '.halvard.json'), 'utf8')) as ProjectConfig;
+  config.requiredSkills = ['halvard'];
+  writeFileSync(join(root, '.halvard.json'), JSON.stringify(config));
   const project = loadProject(root);
   const snapshot = reviewSnapshot(project, readTask(project, created.task));
-  assert.match(snapshot!, /name: workflow/);
+  assert.match(snapshot!, /name: halvard/);
   assert.match(snapshot!, /Never approve your own workflow request/);
 });
 
@@ -1228,11 +1224,9 @@ test('review context includes unchanged dependencies and required project skills
     join(root, '.agents/skills/local-review/SKILL.md'),
     '---\nname: local-review\ndescription: Project review\n---\nCheck actual acceptance evidence.\n',
   );
-  const config = JSON.parse(
-    readFileSync(join(root, '.agent-workflow.json'), 'utf8'),
-  ) as ProjectConfig;
+  const config = JSON.parse(readFileSync(join(root, '.halvard.json'), 'utf8')) as ProjectConfig;
   config.requiredSkills = ['local-review'];
-  writeFileSync(join(root, '.agent-workflow.json'), JSON.stringify(config));
+  writeFileSync(join(root, '.halvard.json'), JSON.stringify(config));
   const snapshot = reviewSnapshot(loadProject(root), readTask(loadProject(root), created.task));
   assert.match(snapshot!, /FILE source.txt\noriginal/);
   assert.match(snapshot!, /Check actual acceptance evidence/);
@@ -1246,7 +1240,7 @@ test('review survives native pre/post hooks', async (t) => {
     const key = sessionKey(root, author, 'review-test');
     const reviewer = author === 'claude' ? 'codex' : 'claude';
     const { pluginRoot, quote } = await import('../core/runtime.ts');
-    const command = `node ${quote(pluginRoot + 'bin/workflow.ts')} review ${task.task} --author ${author} --reviewer ${reviewer} --round 1 --gate-session ${key}`;
+    const command = `node ${quote(pluginRoot + 'bin/halvard.ts')} review ${task.task} --author ${author} --reviewer ${reviewer} --round 1 --gate-session ${key}`;
     const payload = {
       cwd: root,
       session_id: 'review-test',
@@ -1254,10 +1248,10 @@ test('review survives native pre/post hooks', async (t) => {
       tool_input: { command },
     };
     const config = JSON.parse(
-      readFileSync(join(root, '.agent-workflow.json')).toString('utf8'),
+      readFileSync(join(root, '.halvard.json')).toString('utf8'),
     ) as ProjectConfig;
     config.review = ['scripts/review.sh'];
-    writeFileSync(join(root, '.agent-workflow.json'), JSON.stringify(config));
+    writeFileSync(join(root, '.halvard.json'), JSON.stringify(config));
     const wrapper = {
       ...payload,
       tool_input: {
@@ -1292,7 +1286,7 @@ test('additional rounds require an exact-task exception and retain preceding rep
   const task = start(root);
   const args = { author: 'codex', reviewer: 'claude' };
   await assert.rejects(runReview(root, task.task, { ...args, round: 3 }), /configured task limit/);
-  const file = join(root, '.agent-workflow.json');
+  const file = join(root, '.halvard.json');
   const config = JSON.parse(readFileSync(file).toString('utf8')) as ProjectConfig;
   config.workflow.reviewExceptions = {
     [task.task]: { maxRound: 3, reason: 'Explicit test user authorization' },
@@ -1328,8 +1322,8 @@ test('additional rounds require an exact-task exception and retain preceding rep
 test('personal install names the workspace settings and the session restart without changing permissions', (t) => {
   const home = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-user-workspace-')));
   t.after(() => rmSync(home, { recursive: true, force: true }));
-  const plan = personalInstallPlan(home, join(home, '.config/agent-workflow'));
-  assert.equal(plan.workspace.path, process.env.AGENT_WORKFLOW_WORKSPACE);
+  const plan = personalInstallPlan(home, join(home, '.config/halvard'));
+  assert.equal(plan.workspace.path, process.env.HALVARD_WORKSPACE);
   assert.match(plan.workspace.claude, /permissions\.additionalDirectories/);
   assert.match(plan.workspace.codex, /\[sandbox_workspace_write\]/);
   assert.match(plan.instruction, /restart every open Claude Code and Codex session/);

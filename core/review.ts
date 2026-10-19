@@ -135,7 +135,7 @@ export function reviewSnapshot(project: Project, task: Task) {
   const paths = new Set([
     'AGENTS.md',
     'CLAUDE.md',
-    '.agent-workflow.json',
+    '.halvard.json',
     ...git(root, ['diff', '--name-only', '-z', base, '--', ...pathspec])
       .split('\0')
       .filter(Boolean),
@@ -253,7 +253,7 @@ function execute(
     const child = spawn(command[0]!, command.slice(1), {
       cwd,
       detached: true,
-      env: { ...process.env, AGENT_WORKFLOW_REVIEW: '1', PI_REVIEW: '1' },
+      env: { ...process.env, HALVARD_REVIEW: '1', PI_REVIEW: '1' },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     let stdout = '';

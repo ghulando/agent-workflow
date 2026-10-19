@@ -1,7 +1,7 @@
 #!/bin/sh
-# Remove agent-workflow from every harness found on PATH, under both the current
-# ghulando and the old agent-workflow-local marketplace names, with its caches
-# and workflow state. Settings files are backed up before anything changes.
+# Remove Halvard from every harness found on PATH, together with the earlier
+# agent-workflow install under the ghulando and agent-workflow-local marketplace
+# names, with its caches and workflow state. Settings files are backed up before anything changes.
 #
 #   sh uninstall.sh           keep personal.json and the task workspace
 #   sh uninstall.sh --purge   also remove them and the workspace permission entries
@@ -24,14 +24,16 @@ command -v node > /dev/null || {
 }
 
 home=${HOME:?HOME is not set}
-plugin=agent-workflow
+# Each id is plugin@marketplace; the agent-workflow ids are the earlier name.
+ids="halvard@ghulando agent-workflow@ghulando agent-workflow@agent-workflow-local"
 markets="ghulando agent-workflow-local"
-pi_source=git:github.com/ghulando/agent-workflow
+pi_sources="git:github.com/ghulando/halvard git:github.com/ghulando/agent-workflow"
 claude_dir=${CLAUDE_CONFIG_DIR:-$home/.claude}
 codex_dir=${CODEX_HOME:-$home/.codex}
 pi_dir=${PI_CODING_AGENT_DIR:-$home/.pi/agent}
-personal=${AGENT_WORKFLOW_HOME:-$home/.config/agent-workflow}
-workspace=${AGENT_WORKFLOW_WORKSPACE:-$home/.agent-workflow}
+personal=${HALVARD_HOME:-$home/.config/halvard}
+old_personal=$home/.config/agent-workflow
+workspace=${HALVARD_WORKSPACE:-$home/.halvard}
 
 # has <json> <expression>: true when the expression, applied to the parsed JSON as j, is truthy.
 has() {
@@ -54,8 +56,8 @@ expect() {
 # Harness CLIs edit these files too, so copy them before any command runs.
 for file in "$claude_dir/settings.json" "$codex_dir/config.toml"; do
   if [ -f "$file" ]; then
-    cp "$file" "$file.agent-workflow.bak"
-    echo "Backed up $file to $file.agent-workflow.bak"
+    cp "$file" "$file.halvard.bak"
+    echo "Backed up $file to $file.halvard.bak"
   fi
 done
 
@@ -65,12 +67,9 @@ if command -v claude > /dev/null; then
   plugins=$(claude plugin list --json)
   expect "$list" "Array.isArray(j) && j.every((m) => typeof m?.name === 'string')" "claude plugin marketplace list"
   expect "$plugins" "Array.isArray(j) && j.every((p) => typeof p?.id === 'string' && typeof p.scope === 'string')" "claude plugin list"
-  for market in $markets; do
-    if has "$plugins" "j.some((p) => p.id === '$plugin@$market' && p.scope === 'user')"; then
-      claude plugin uninstall "$plugin@$market"
-    fi
-    if has "$list" "j.some((m) => m.name === '$market')"; then
-      claude plugin marketplace remove "$market"
+  for id in $ids; do
+    if has "$plugins" "j.some((p) => p.id === '$id' && p.scope === 'user')"; then
+      claude plugin uninstall "$id"
     fi
     # Project-scope installs live in each project's own settings, which this script leaves alone.
     printf '%s' "$plugins" | node -e '
@@ -81,7 +80,12 @@ process.stdin.on("data", (c) => (raw += c)).on("end", () => {
       console.log(`  ${p.projectPath} still enables ${p.id}; there run: claude plugin uninstall ${p.id} --scope ${p.scope}`);
     }
   }
-});' "$plugin@$market"
+});' "$id"
+  done
+  for market in $markets; do
+    if has "$list" "j.some((m) => m.name === '$market')"; then
+      claude plugin marketplace remove "$market"
+    fi
   done
 fi
 
@@ -91,10 +95,12 @@ if command -v codex > /dev/null; then
   plugins=$(codex plugin list --json)
   expect "$list" "Array.isArray(j.marketplaces) && j.marketplaces.every((m) => typeof m?.name === 'string')" "codex plugin marketplace list"
   expect "$plugins" "Array.isArray(j.installed) && j.installed.every((p) => typeof p?.pluginId === 'string')" "codex plugin list"
-  for market in $markets; do
-    if has "$plugins" "j.installed.some((p) => p.pluginId === '$plugin@$market')"; then
-      codex plugin remove "$plugin@$market"
+  for id in $ids; do
+    if has "$plugins" "j.installed.some((p) => p.pluginId === '$id')"; then
+      codex plugin remove "$id"
     fi
+  done
+  for market in $markets; do
     if has "$list" "j.marketplaces.some((m) => m.name === '$market')"; then
       codex plugin marketplace remove "$market"
     fi
@@ -105,7 +111,7 @@ if command -v pi > /dev/null; then
   echo "Pi"
   packages=$(pi list)
   # A GitHub install, or the package copied by install-user.
-  for source in "$pi_source" "$personal/package"; do
+  for source in $pi_sources "$personal/package" "$old_personal/package"; do
     if printf '%s\n' "$packages" | grep -qxF "  $source"; then
       pi remove "$source"
     fi
@@ -116,8 +122,8 @@ echo "Settings"
 node -e '
 const fs = require("node:fs");
 const [claudeDir, codexDir, workspace, purge] = process.argv.slice(1);
-const ids = ["agent-workflow@ghulando", "agent-workflow@agent-workflow-local"];
-const markets = ["ghulando", "agent-workflow-local"];
+const ids = process.argv[5].split(" ");
+const markets = process.argv[6].split(" ");
 
 function edit(path, change) {
   if (!fs.existsSync(path)) return;
@@ -189,7 +195,7 @@ edit(`${codexDir}/config.toml`, (text) => {
     .map((table) => (purge && keyOf(table) === "[sandbox_workspace_write]" ? withoutWorkspace(table) : table))
     .join("");
 });
-' "$claude_dir" "$codex_dir" "$workspace" "$purge"
+' "$claude_dir" "$codex_dir" "$workspace" "$purge" "$ids" "$markets"
 
 echo "Files"
 tmp=$(node -p 'require("node:os").tmpdir()')
@@ -199,10 +205,14 @@ remove() {
     echo "  removed $1"
   fi
 }
-for market in $markets; do
+for id in $ids; do
+  plugin=${id%@*}
+  market=${id#*@}
   remove "$claude_dir/plugins/cache/$market/$plugin"
   remove "$claude_dir/plugins/data/$plugin-$market"
   remove "$codex_dir/plugins/cache/$market/$plugin"
+done
+for market in $markets; do
   remove "$codex_dir/.tmp/marketplaces/$market"
   for parent in "$claude_dir/plugins/cache/$market" "$codex_dir/plugins/cache/$market"; do
     if [ -d "$parent" ] && [ -z "$(ls -A "$parent")" ]; then
@@ -210,9 +220,13 @@ for market in $markets; do
     fi
   done
 done
+remove "$pi_dir/git/github.com/ghulando/halvard"
 remove "$pi_dir/git/github.com/ghulando/agent-workflow"
 remove "$personal/package"
 remove "$personal/.agents"
+remove "$old_personal/package"
+remove "$old_personal/.agents"
+remove "$tmp/halvard-$(id -u)"
 remove "$tmp/agent-workflow-$(id -u)"
 if [ -n "$purge" ]; then
   remove "$personal"
@@ -222,7 +236,7 @@ fi
 cat << EOF
 
 Done. Restart every open Claude Code, Codex and Pi session.
-Repositories set up with "workflow.ts install <repo>" keep their own plugins/agent-workflow
+Repositories set up with "halvard.ts install <repo>" keep their own plugins/halvard
 copy and settings; remove those in each repository.
 EOF
 if [ -z "$purge" ]; then

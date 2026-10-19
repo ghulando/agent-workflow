@@ -15,6 +15,6 @@ try {
   const result = await handle(harness, payload);
   process.stdout.write(JSON.stringify(hookOutput(harness, payload.hook_event_name, result)));
 } catch (err) {
-  process.stderr.write(`agent-workflow: ${(err as Error).message}\n`);
+  process.stderr.write(`halvard: ${(err as Error).message}\n`);
   process.exitCode = 2;
 }

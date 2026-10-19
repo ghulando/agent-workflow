@@ -11,10 +11,10 @@ const harnesses: Harness[] = ['claude', 'codex', 'pi'];
 const BEFORE = 10 * 60 * 1000;
 const AFTER = 60 * 60 * 1000;
 const REASON_LIMIT = 300;
-const APPROVAL = /^approve workflow [a-f0-9]{64}$/;
-const ASK = /\n(?:To approve this one operation, send exactly|Send): approve workflow [a-f0-9]{64}/;
+const APPROVAL = /^approve halvard [a-f0-9]{64}$/;
+const ASK = /\n(?:To approve this one operation, send exactly|Send): approve halvard [a-f0-9]{64}/;
 const GATE_PASSED = /^workflow: gate passed on the current tree$/m;
-const GATE_FAILED = /^agent-workflow: gate failed: (.+?)(?:; fix the cause and rerun)?$/gm;
+const GATE_FAILED = /^halvard: gate failed: (.+?)(?:; fix the cause and rerun)?$/gm;
 // Only runGate's own failure reasons are reported; other text after the marker stays out.
 const GATE_REASONS = [
   'checks failed or timed out',
@@ -25,7 +25,7 @@ const GATE_REASONS = [
 const CLAUDE_DENIAL = /^PreToolUse:[\w.-]+ hook error: ([\s\S]*)$/;
 const CODEX_DENIAL = 'Command blocked by PreToolUse hook: ';
 const CODEX_SCRIPT_ERROR = `Script error:\n${CODEX_DENIAL}`;
-const PI_DENIAL = 'agent-workflow blocked: ';
+const PI_DENIAL = 'halvard blocked: ';
 
 interface Item {
   cwd?: unknown;

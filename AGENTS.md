@@ -1,9 +1,9 @@
-# Agent Workflow
+# Halvard
 
-Shared development workflow for Pi, Codex and Claude Code. Generic engine,
+Halvard is a shared development workflow for Pi, Codex and Claude Code. Generic engine,
 native adapters and adapted skills belong here. Application stack rules belong
 in consuming repositories; the only exception is the stack records in stacks/,
-which flow-bootstrap reads and npm pack never ships. The engine and skills name
+which halvard-bootstrap reads and npm pack never ships. The engine and skills name
 no stack. Read UPSTREAM.md before changing adapted skills.
 
 Work on feature or fix branches. Preserve dirty work. Never commit, push or

@@ -1,5 +1,5 @@
 ---
-name: flow-test
+name: halvard-test
 description: Write behavior-based tests and use a red-green loop at meaningful application interfaces. Use for regression coverage and new behavior.
 ---
 

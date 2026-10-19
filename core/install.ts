@@ -29,9 +29,7 @@ export function installPlan(
 ): ProjectInstallPlan {
   const root = realpathSync(repo);
   const writes: SettingsWrite[] = [];
-  const installedRoot = inside(root, pluginRoot)
-    ? pluginRoot
-    : resolve(root, 'plugins/agent-workflow');
+  const installedRoot = inside(root, pluginRoot) ? pluginRoot : resolve(root, 'plugins/halvard');
   const packageFiles = [
     ...json<PackageMetadata>(resolve(pluginRoot, 'package.json')).files,
     'package.json',
@@ -44,11 +42,11 @@ export function installPlan(
     if (existsSync(installedRoot)) {
       const metadata = json<PackageMetadata>(resolve(installedRoot, 'package.json'));
       if (
-        metadata.name !== 'agent-workflow' ||
+        metadata.name !== 'halvard' ||
         metadata.version !== json<PackageMetadata>(resolve(pluginRoot, 'package.json')).version
       ) {
         throw new Error(
-          'plugins/agent-workflow already exists; version or package name differs; repair requires the same version; review and update it before installing',
+          'plugins/halvard already exists; version or package name differs; repair requires the same version; review and update it before installing',
         );
       }
       drift = packageStatus(pluginRoot, installedRoot);
@@ -90,7 +88,7 @@ export function installPlan(
   }
   claude.extraKnownMarketplaces[market] = directory;
   claude.enabledPlugins ??= {};
-  claude.enabledPlugins[`agent-workflow@${market}`] = true;
+  claude.enabledPlugins[`halvard@${market}`] = true;
   stageJSON('.claude/settings.json', claude);
   if (!existsSync(resolve(root, 'CLAUDE.md')) && existsSync(resolve(root, 'AGENTS.md'))) {
     stage('CLAUDE.md', '@AGENTS.md\n');
@@ -103,10 +101,10 @@ export function installPlan(
   }
   const local = './' + relative(root, installedRoot).split('\\').join('/').replace(/\/$/, '');
   const entry = {
-    name: 'agent-workflow',
+    name: 'halvard',
     source: { source: 'local', path: local },
     interface: {
-      displayName: 'Agent Workflow',
+      displayName: 'Halvard',
       shortDescription: 'Shared repository workflow guards',
     },
     policy: { installation: 'AVAILABLE', authentication: 'ON_INSTALL' },
@@ -124,8 +122,8 @@ export function installPlan(
   stageJSON(codexPath, codex);
   const configPath = resolve(root, '.codex/config.toml');
   const toml = existsSync(configPath) ? readFileSync(configPath, 'utf8') : '';
-  const heading = `[plugins."agent-workflow@${codex.name}"]`;
-  const headings = [heading, `[plugins.'agent-workflow@${codex.name}']`];
+  const heading = `[plugins."halvard@${codex.name}"]`;
+  const headings = [heading, `[plugins.'halvard@${codex.name}']`];
   const tables = toml.split(/(?=^\s*\[)/m);
   const table = tables.find((part) => headings.some((key) => part.trimStart().startsWith(key)));
   if (table && !/^\s*enabled\s*=\s*true\s*(?:#.*)?$/m.test(table)) {

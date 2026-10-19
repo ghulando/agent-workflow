@@ -1,5 +1,5 @@
 ---
-name: flow-retro
+name: halvard-retro
 description: Grill the user about a finished task, logs first, and log workflow improvements that recur across retrospectives. Use after a task is marked done, when the user accepts the offered retro or asks for one.
 ---
 
@@ -7,7 +7,7 @@ Run the retro in the session that finished the task; in a team run, the lead run
 
 ## Evidence first
 
-Run `node <plugin-root>/bin/workflow.ts retro-events <task-id>` from the repository root. It prints the task workspace files, recorded review verdicts, the paths of earlier retro logs and, per harness, the sessions found, guard denials and asks grouped by reason, `approve workflow` prompts, and gate passes and failures. It reads Claude, Codex and Pi transcripts whose cwd is the repository, between ten minutes before the earliest workspace file and an hour after the latest. Claude asks answered in the native dialog leave no record and are not counted. Say so instead of claiming none happened.
+Run `node <plugin-root>/bin/halvard.ts retro-events <task-id>` from the repository root. It prints the task workspace files, recorded review verdicts, the paths of earlier retro logs and, per harness, the sessions found, guard denials and asks grouped by reason, `approve halvard` prompts, and gate passes and failures. It reads Claude, Codex and Pi transcripts whose cwd is the repository, between ten minutes before the earliest workspace file and an hour after the latest. Claude asks answered in the native dialog leave no record and are not counted. Say so instead of claiming none happened.
 
 Read every file in `retroLogs`, then the task file and the workspace briefs, reports, findings and verdicts. A solo run also uses its own session: corrections the user made and steps that were repeated.
 
@@ -15,7 +15,7 @@ Turn the evidence into findings. A finding is a cause, not a count: "Pi was deni
 
 ## Grill
 
-Ask about one finding at a time, most frequent or most costly first, with the harness's question tool where it has one and in plain chat otherwise. State the evidence, say how many earlier retros logged the same id ("this is the third time"), and recommend one classification: guard bug, skill gap, project config gap, personal config gap or expected. Move on only when the user has classified the finding and named its target: agent-workflow skills, agent-workflow engine, project config or personal config. Push back when an answer contradicts the evidence. Treat an unclear match with an earlier finding as a question for the user, not as a repeat.
+Ask about one finding at a time, most frequent or most costly first, with the harness's question tool where it has one and in plain chat otherwise. State the evidence, say how many earlier retros logged the same id ("this is the third time"), and recommend one classification: guard bug, skill gap, project config gap, personal config gap or expected. Move on only when the user has classified the finding and named its target: Halvard skills, Halvard engine, project config or personal config. Push back when an answer contradicts the evidence. Treat an unclear match with an earlier finding as a question for the user, not as a repeat.
 
 When the findings run out, ask one open question: what slowed or annoyed the user that the logs do not show. Grill the answer like a finding.
 
@@ -25,4 +25,4 @@ Append one entry to `<harness>-retro-log.md` in the workspace root, the director
 
 Never copy transcript text, commands, file contents, credentials or customer data into the log. Guard reasons from `retro-events` and short summaries of the user's answers are the only quoted material.
 
-Finish by showing the entry and listing the actionable findings as candidate agent-workflow tasks. Starting one is the user's call.
+Finish by showing the entry and listing the actionable findings as candidate Halvard tasks. Starting one is the user's call.

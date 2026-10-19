@@ -83,8 +83,8 @@ function fixture(t: TestContext) {
     'HOME',
     'CLAUDE_CONFIG_DIR',
     'CODEX_HOME',
-    'AGENT_WORKFLOW_WORKSPACE',
-    'AGENT_WORKFLOW_HOME',
+    'HALVARD_WORKSPACE',
+    'HALVARD_HOME',
     'CLAUDE_CODE_SESSION_ID',
     'PI_CODING_AGENT_DIR',
   ] as const;
@@ -93,8 +93,8 @@ function fixture(t: TestContext) {
     home,
     join(home, '.claude'),
     join(home, '.codex'),
-    join(home, '.agent-workflow'),
-    join(home, '.config/agent-workflow'),
+    join(home, '.halvard'),
+    join(home, '.config/halvard'),
   ];
   keys.forEach((key, i) => {
     if (values[i] === undefined) {
@@ -318,7 +318,7 @@ test('history cleaning removes only chosen harnesses and always team workspaces'
   const globalMemory = put('.claude/memory/MEMORY.md');
   const cache = put('.claude/cache/data');
   const pi = put('.pi/agent/sessions/repo/session.jsonl');
-  const team = put('.agent-workflow/repo/task/codex-report.md');
+  const team = put('.halvard/repo/task/codex-report.md');
   const plan = planClean({ harnesses: ['claude'], processes: [] });
   assert.ok(plan.entries.some((entry) => entry.path === join(home, '.claude/projects/repo')));
   const file = saveCleanPlan(plan);
@@ -403,8 +403,8 @@ test('every allowlisted category is removed and unrelated payloads survive', (t)
     ...['logs_2', 'thread_history_1', 'state_5', 'goals_1', 'queue_1'].flatMap((db) =>
       ['', '-wal', '-shm'].map((suffix) => `.codex/${db}.sqlite${suffix}`),
     ),
-    '.agent-workflow/repo/task/.repo',
-    '.agent-workflow/repo/skills/codex-report.md',
+    '.halvard/repo/task/.repo',
+    '.halvard/repo/skills/codex-report.md',
   ];
   const removed = paths.map((path) => put(path));
   const kept = [
@@ -429,7 +429,7 @@ test('every allowlisted category is removed and unrelated payloads survive', (t)
     '.codex/memories_1.sqlite-shm',
     '.codex/packages/data',
     '.codex/unknown/data',
-    '.config/agent-workflow/personal.json',
+    '.config/halvard/personal.json',
   ].map((path) => put(path, path.endsWith('settings.json') ? '{}' : 'keep'));
   const file = saveCleanPlan(planClean({ harnesses: historyHarnesses('all'), processes: [] }));
   applyClean(file, 'DELETE', { processes: [] });
@@ -532,9 +532,9 @@ test('matched links are removed without following targets; linked roots are refu
 
 test('overlapping personal data and configured global memory cannot be swept', (t) => {
   const { home, put } = fixture(t);
-  process.env.AGENT_WORKFLOW_HOME = join(home, '.claude/plans/personal');
+  process.env.HALVARD_HOME = join(home, '.claude/plans/personal');
   const personal = put('.claude/plans/personal/personal.json');
-  const report = put('.agent-workflow/repo/task/codex-report.md');
+  const report = put('.halvard/repo/task/codex-report.md');
   put(
     '.claude/settings.json',
     JSON.stringify({ autoMemoryDirectory: join(home, '.claude/paste-cache/global-memory') }),
@@ -612,7 +612,7 @@ test('IDE locks stay while their recorded process runs', (t) => {
 
 test('overridden workspace roots do not bypass harness allowlists or database deferral', (t) => {
   const { home, put } = fixture(t);
-  process.env.AGENT_WORKFLOW_WORKSPACE = join(home, '.codex');
+  process.env.HALVARD_WORKSPACE = join(home, '.codex');
   const db = put('.codex/state_5.sqlite');
   const config = put('.codex/config.toml');
   const data = put('.codex/sessions/year/old.jsonl');
@@ -626,7 +626,7 @@ test('overridden workspace roots do not bypass harness allowlists or database de
 test('unsafe roots, ancestors and overlapping roots are refused before planning', (t) => {
   const { home } = fixture(t);
   const originalClaude = process.env.CLAUDE_CONFIG_DIR!;
-  const originalWorkspace = process.env.AGENT_WORKFLOW_WORKSPACE!;
+  const originalWorkspace = process.env.HALVARD_WORKSPACE!;
   for (const unsafe of [home, dirname(home), '/']) {
     process.env.CLAUDE_CONFIG_DIR = unsafe;
     assert.throws(
@@ -634,20 +634,20 @@ test('unsafe roots, ancestors and overlapping roots are refused before planning'
       /unsafe|home|ancestor/i,
     );
     process.env.CLAUDE_CONFIG_DIR = originalClaude;
-    process.env.AGENT_WORKFLOW_WORKSPACE = unsafe;
+    process.env.HALVARD_WORKSPACE = unsafe;
     assert.throws(() => planClean({ harnesses: ['pi'], processes: [] }), /unsafe|home|ancestor/i);
-    process.env.AGENT_WORKFLOW_WORKSPACE = originalWorkspace;
+    process.env.HALVARD_WORKSPACE = originalWorkspace;
   }
   process.env.CLAUDE_CONFIG_DIR = process.env.CODEX_HOME;
   assert.throws(() => planClean({ harnesses: ['claude', 'codex'], processes: [] }), /overlap/);
   process.env.CLAUDE_CONFIG_DIR = join(process.env.CODEX_HOME!, 'nested');
   assert.throws(() => planClean({ harnesses: ['claude'], processes: [] }), /overlap/);
   process.env.CLAUDE_CONFIG_DIR = originalClaude;
-  process.env.AGENT_WORKFLOW_WORKSPACE = dirname(process.env.AGENT_WORKFLOW_HOME!);
+  process.env.HALVARD_WORKSPACE = dirname(process.env.HALVARD_HOME!);
   assert.throws(() => planClean({ harnesses: ['pi'], processes: [] }), /personal/i);
-  process.env.AGENT_WORKFLOW_WORKSPACE = process.env.AGENT_WORKFLOW_HOME;
+  process.env.HALVARD_WORKSPACE = process.env.HALVARD_HOME;
   assert.throws(() => planClean({ harnesses: ['pi'], processes: [] }), /personal/i);
-  process.env.AGENT_WORKFLOW_WORKSPACE = originalWorkspace;
+  process.env.HALVARD_WORKSPACE = originalWorkspace;
   const alias = join(home, 'home-alias');
   symlinkSync(home, alias);
   process.env.CLAUDE_CONFIG_DIR = join(alias, 'missing', '..');
@@ -665,7 +665,7 @@ test('summary folders and their real paths may never lie inside cleanup roots', 
   symlinkSync(inside, summary);
   assert.throws(() => planClean({ harnesses: ['claude'], processes: [] }), /summar/i);
   rmSync(summary);
-  process.env.AGENT_WORKFLOW_WORKSPACE = summary;
+  process.env.HALVARD_WORKSPACE = summary;
   assert.throws(() => planClean({ harnesses: ['pi'], processes: [] }), /summar/i);
 });
 
@@ -933,7 +933,7 @@ test('CLI plans, digests and applies only a fixture home using an injected proce
   );
   const env = { ...process.env, PATH: dirname(ps) + ':' + process.env.PATH };
   const run = (...args: string[]) =>
-    spawnSync(process.execPath, [join(pluginRoot, 'bin/workflow.ts'), ...args], {
+    spawnSync(process.execPath, [join(pluginRoot, 'bin/halvard.ts'), ...args], {
       cwd: home,
       env,
       encoding: 'utf8',
@@ -1058,7 +1058,7 @@ test('the skill ships in the catalog with user-only metadata and CLI grammar', (
   assert.equal(skill.bundled, true);
   assert.match(skill.content, /disable-model-invocation: true/);
   assert.match(skill.content, /Refuse unless the user explicitly invoked/);
-  const help = spawnSync(process.execPath, [join(pluginRoot, 'bin/workflow.ts'), '--help'], {
+  const help = spawnSync(process.execPath, [join(pluginRoot, 'bin/halvard.ts'), '--help'], {
     encoding: 'utf8',
   });
   assert.match(help.stdout, /history-plan/);

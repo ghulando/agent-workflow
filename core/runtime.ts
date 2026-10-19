@@ -61,7 +61,7 @@ export const pluginRoot = fileURLToPath(new URL('../', import.meta.url));
 export const quote = (text: string) =>
   text.includes("'") ? '"' + text.replace(/["\\$`]/g, '\\$&') + '"' : "'" + text + "'";
 
-const runnerPath = () => resolve(pluginRoot, 'bin/workflow.ts');
+const runnerPath = () => resolve(pluginRoot, 'bin/halvard.ts');
 
 export function gateCommand(key: string) {
   return `node ${quote(runnerPath())} gate ${key}`;
@@ -71,7 +71,7 @@ export function gateCommand(key: string) {
 export function reviewCall(key: string, harness: string, config: ProjectConfig) {
   const reviewer = assignment(config.workflow, harness)?.reviewer ?? '<reviewer>';
   if (config.review) {
-    return `REVIEW_GATE_SESSION=${key} AGENT_WORKFLOW_RUNNER=${quote(runnerPath())} ${quote(config.review[0]!)} <task-file> ${harness} ${reviewer} [round]`;
+    return `REVIEW_GATE_SESSION=${key} HALVARD_RUNNER=${quote(runnerPath())} ${quote(config.review[0]!)} <task-file> ${harness} ${reviewer} [round]`;
   }
   return `node ${quote(runnerPath())} review <task-file> --author ${harness} --reviewer ${reviewer} --round <n> --gate-session ${key}`;
 }
@@ -92,10 +92,10 @@ function runnerCall(action: Action, root: string) {
   try {
     if (cwd !== root && !inside(root, realpathSync(cwd))) return null;
     const path = realpathSync(resolve(action.cwd, runner));
-    if (path !== realpathSync(resolve(pluginRoot, 'bin/workflow.ts'))) {
+    if (path !== realpathSync(resolve(pluginRoot, 'bin/halvard.ts'))) {
       const candidate = dirname(dirname(path));
       if (
-        path !== resolve(candidate, 'bin/workflow.ts') ||
+        path !== resolve(candidate, 'bin/halvard.ts') ||
         packageDigest(candidate) !== packageDigest(pluginRoot)
       ) {
         return null;
@@ -114,10 +114,10 @@ function isGate(call: ParsedCommand | null, key: string) {
 // A gate the hook cannot recognize loses its receipt on PostToolUse.
 function strandedGate(command: string) {
   const parts = commands(command);
-  if (!parts) return /workflow\.ts\S*\s+gate\b/.test(command);
+  if (!parts) return /halvard\.ts\S*\s+gate\b/.test(command);
   return (
     parts.length > 1 &&
-    parts.some((s) => s[0] === 'node' && s[1]?.endsWith('workflow.ts') && s[2] === 'gate')
+    parts.some((s) => s[0] === 'node' && s[1]?.endsWith('halvard.ts') && s[2] === 'gate')
   );
 }
 
@@ -135,8 +135,8 @@ function isReview(
   if (action.kind !== 'shell' || resolve(action.cwd) !== root) return false;
   const parts = commands(action.command);
   let p = parts?.[0];
-  if (p?.[1]?.startsWith('AGENT_WORKFLOW_RUNNER=')) {
-    if (p[1] !== `AGENT_WORKFLOW_RUNNER=${runnerPath()}`) return false;
+  if (p?.[1]?.startsWith('HALVARD_RUNNER=')) {
+    if (p[1] !== `HALVARD_RUNNER=${runnerPath()}`) return false;
     p = [p[0]!, ...p.slice(2)];
   }
   return (
@@ -221,7 +221,7 @@ function protectedPatterns(project: Project) {
 function readonlyMode(payload: HookPayload) {
   return (
     payload.permission_mode === 'plan' ||
-    process.env.AGENT_WORKFLOW_REVIEW === '1' ||
+    process.env.HALVARD_REVIEW === '1' ||
     process.env.PI_REVIEW === '1'
   );
 }
@@ -237,7 +237,7 @@ export async function handle(harness: string | undefined, raw: unknown): Promise
   const approval =
     event === 'UserPromptSubmit' &&
     typeof payload.prompt === 'string' &&
-    payload.prompt.trim().match(/^approve workflow ([a-f0-9]{64})$/);
+    payload.prompt.trim().match(/^approve halvard ([a-f0-9]{64})$/);
   // Ordinary prompts must remain usable even when project configuration is broken.
   if (event === 'UserPromptSubmit' && !approval) return {};
   // A personal install loads these hooks in every session; there is no project to guard here.

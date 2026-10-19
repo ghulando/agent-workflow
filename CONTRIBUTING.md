@@ -1,6 +1,6 @@
 # Contributing
 
-Branch, build and approval rules are in `AGENTS.md` at the repository root. Read [UPSTREAM.md](UPSTREAM.md) before editing a flow skill.
+Branch, build and approval rules are in `AGENTS.md` at the repository root. Read [UPSTREAM.md](UPSTREAM.md) before editing a Halvard skill.
 
 Keep the engine generic: languages, check commands and formatters belong in the consuming repository's configuration or extensions. Do not use `any` or compiler suppression comments; take `unknown` at system boundaries and run it through the existing validation. `adapters/pi-peer.d.ts` is a hand-written copy of the Pi host API, so check it against an installed Pi when you change the Pi adapter. Add a regression test for each behaviour change, including hostile flags and paths.
 

@@ -4,9 +4,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { lists, runScript } from './script-stubs.ts';
 
-const old = 'agent-workflow@agent-workflow-local';
-const plugin = 'agent-workflow@ghulando';
-const pi = 'git:github.com/ghulando/agent-workflow';
+// The earlier agent-workflow name, under the current and the older marketplace.
+const oldLocal = 'agent-workflow@agent-workflow-local';
+const oldGhulando = 'agent-workflow@ghulando';
+const oldPi = 'git:github.com/ghulando/agent-workflow';
+const plugin = 'halvard@ghulando';
+const pi = 'git:github.com/ghulando/halvard';
 
 const run = (t: TestContext, fixtures: Fixtures) => runScript(t, 'install.sh', fixtures);
 
@@ -14,39 +17,43 @@ test('install script installs every harness on a fresh machine', (t) => {
   const result = run(t, lists([], [], [], [], 'User packages:\n'));
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(result.calls, [
-    'claude plugin marketplace add ghulando/agent-workflow',
+    'claude plugin marketplace add ghulando/halvard',
     `claude plugin install ${plugin}`,
-    'codex plugin marketplace add ghulando/agent-workflow',
+    'codex plugin marketplace add ghulando/halvard',
     `codex plugin add ${plugin}`,
     `pi install ${pi}`,
   ]);
 });
 
-test('install script removes the old marketplace name and names project installs', (t) => {
+test('install script removes the earlier agent-workflow install and names project installs', (t) => {
   const result = run(
     t,
     lists(
-      [{ name: 'agent-workflow-local' }],
+      [{ name: 'agent-workflow-local' }, { name: 'ghulando' }],
       [
-        { id: old, scope: 'project' },
-        { id: old, scope: 'user' },
+        { id: oldLocal, scope: 'project' },
+        { id: oldLocal, scope: 'user' },
+        { id: oldGhulando, scope: 'user' },
       ],
-      [{ name: 'agent-workflow-local' }],
-      [{ pluginId: old }],
-      `User packages:\n  ${pi}\n    /home/.pi/agent/git/github.com/ghulando/agent-workflow\n`,
+      [{ name: 'agent-workflow-local' }, { name: 'ghulando' }],
+      [{ pluginId: oldLocal }, { pluginId: oldGhulando }],
+      `User packages:\n  ${oldPi}\n    /home/.pi/agent/git/github.com/ghulando/agent-workflow\n`,
     ),
   );
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(result.calls, [
-    `claude plugin uninstall ${old}`,
+    `claude plugin uninstall ${oldGhulando}`,
+    `claude plugin uninstall ${oldLocal}`,
     'claude plugin marketplace remove agent-workflow-local',
-    'claude plugin marketplace add ghulando/agent-workflow',
+    'claude plugin marketplace update ghulando',
     `claude plugin install ${plugin}`,
-    `codex plugin remove ${old}`,
+    `codex plugin remove ${oldGhulando}`,
+    `codex plugin remove ${oldLocal}`,
     'codex plugin marketplace remove agent-workflow-local',
-    'codex plugin marketplace add ghulando/agent-workflow',
+    'codex plugin marketplace upgrade ghulando',
     `codex plugin add ${plugin}`,
-    `pi update ${pi}`,
+    `pi remove ${oldPi}`,
+    `pi install ${pi}`,
   ]);
   assert.match(
     result.stdout,
@@ -85,7 +92,7 @@ test('install script stops before changes when a harness reports unexpected outp
 });
 
 test('install script stops before changes when a Claude plugin has no scope', (t) => {
-  const result = run(t, lists([{ name: 'agent-workflow-local' }], [{ id: old }], [], [], ''));
+  const result = run(t, lists([{ name: 'agent-workflow-local' }], [{ id: oldLocal }], [], [], ''));
   assert.notEqual(result.status, 0);
   assert.deepEqual(result.calls, []);
   assert.match(result.stderr, /Unexpected output from claude plugin list/);

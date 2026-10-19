@@ -12,10 +12,10 @@ import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const source = fileURLToPath(new URL('../', import.meta.url));
-const temporary = mkdtempSync(join(tmpdir(), 'agent-workflow-packed-'));
-const previous = process.env.AGENT_WORKFLOW_HOME;
+const temporary = mkdtempSync(join(tmpdir(), 'halvard-packed-'));
+const previous = process.env.HALVARD_HOME;
 
-process.env.AGENT_WORKFLOW_HOME = join(temporary, 'personal');
+process.env.HALVARD_HOME = join(temporary, 'personal');
 
 const metadata: unknown = JSON.parse(readFileSync(join(source, 'package.json'), 'utf8'));
 const expected = (metadata as PackageMetadata).version;
@@ -41,8 +41,8 @@ try {
   const app = join(temporary, 'app');
   mkdirSync(app);
   execFileSync('git', ['init', '-q', '--initial-branch=main', app]);
-  execFileSync(process.execPath, [join(temporary, 'package/bin/workflow.ts'), 'install', app]);
-  const installed = join(app, 'plugins/agent-workflow');
+  execFileSync(process.execPath, [join(temporary, 'package/bin/halvard.ts'), 'install', app]);
+  const installed = join(app, 'plugins/halvard');
   const rawInstalled: unknown = JSON.parse(readFileSync(join(installed, 'package.json'), 'utf8'));
   const installedMetadata = rawInstalled as PackageMetadata;
   assert.equal(installedMetadata.version, expected);
@@ -137,7 +137,7 @@ try {
       session_id: 'packed-verification',
       hook_event_name: 'SessionStart',
     });
-    assert.match(context.context!, /skills\/workflow\/SKILL\.md/);
+    assert.match(context.context!, /skills\/halvard\/SKILL\.md/);
   }
   const suite = spawnSync(
     process.execPath,
@@ -156,9 +156,9 @@ try {
   );
 } finally {
   if (previous === undefined) {
-    delete process.env.AGENT_WORKFLOW_HOME;
+    delete process.env.HALVARD_HOME;
   } else {
-    process.env.AGENT_WORKFLOW_HOME = previous;
+    process.env.HALVARD_HOME = previous;
   }
   rmSync(temporary, { recursive: true, force: true });
 }

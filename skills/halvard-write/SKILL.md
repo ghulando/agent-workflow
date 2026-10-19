@@ -1,5 +1,5 @@
 ---
-name: flow-write
+name: halvard-write
 description: Write or rewrite text that an agent or a program must read with one meaning. Use for briefs, acceptance criteria, review findings, error messages and tool or skill descriptions, or when asked to disambiguate text. Not for creative or marketing copy.
 ---
 

@@ -33,7 +33,7 @@ function fixture(t: TestContext, workflow = {}) {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   execFileSync('git', ['init', '-q', '--initial-branch=main'], { cwd: root });
   writeFileSync(
-    join(root, '.agent-workflow.json'),
+    join(root, '.halvard.json'),
     JSON.stringify({
       gate: [process.execPath, '-e', 'process.exit(0)'],
       workflow: { reviewers: { claude: {}, codex: {} }, ...workflow },
@@ -114,16 +114,16 @@ test('hooks recognize reordered review arguments and identical runner copies wit
     tool_input: { command },
   });
   assert.equal(
-    (await handle('codex', payload(`node ${quote(join(copy, 'bin/workflow.ts'))} gate ${key}`)))
+    (await handle('codex', payload(`node ${quote(join(copy, 'bin/halvard.ts'))} gate ${key}`)))
       .decision,
     undefined,
   );
-  const command = `node ${quote(join(copy, 'bin/workflow.ts'))} review --round 1 --author codex docs/tasks/task.md --gate-session ${key} --reviewer claude`;
+  const command = `node ${quote(join(copy, 'bin/halvard.ts'))} review --round 1 --author codex docs/tasks/task.md --gate-session ${key} --reviewer claude`;
   assert.equal((await handle('codex', payload(command))).decision, undefined);
   assert.equal((await handle('codex', payload(command + ' --extra'))).decision, 'deny');
   writeFileSync(join(copy, 'core/runtime.ts'), 'modified runner');
   assert.equal(
-    (await handle('codex', payload(`node ${quote(join(copy, 'bin/workflow.ts'))} gate ${key}`)))
+    (await handle('codex', payload(`node ${quote(join(copy, 'bin/halvard.ts'))} gate ${key}`)))
       .decision,
     'deny',
   );
@@ -194,10 +194,10 @@ test('explicit stopped-reviewer recovery handles launch records without losing v
 
 test('CLI help, doctor exit status and current-harness diagnostics are observable', async (t) => {
   const root = fixture(t, { reviewers: {} });
-  const runner = join(pluginRoot, 'bin/workflow.ts');
+  const runner = join(pluginRoot, 'bin/halvard.ts');
   const help = spawnSync(process.execPath, [runner], { cwd: root, encoding: 'utf8' });
   assert.equal(help.status, 0);
-  assert.match(help.stdout, /agent-workflow commands/);
+  assert.match(help.stdout, /halvard commands/);
   const diagnosed = spawnSync(process.execPath, [runner, 'doctor', '--author', 'codex'], {
     cwd: root,
     encoding: 'utf8',
@@ -209,7 +209,7 @@ test('CLI help, doctor exit status and current-harness diagnostics are observabl
   assert.match(context!, /No configured independent reviewer for codex/);
   assert.doesNotMatch(context!, /No configured independent reviewer for (pi|claude)/);
   assert.doesNotMatch(doctor(root).issues.join(' '), /independent reviewer/);
-  const configFile = join(root, '.agent-workflow.json');
+  const configFile = join(root, '.halvard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   writeFileSync(configFile, JSON.stringify({ ...config, review: ['scripts/review.sh'] }));
   assert.match(doctor(root).issues.join(' '), /Review wrapper scripts\/review.sh is missing/);
@@ -221,25 +221,25 @@ test('CLI help, doctor exit status and current-harness diagnostics are observabl
   writeFileSync(configFile, JSON.stringify({ ...config, review: ['scripts/review.sh/run'] }));
   assert.match(doctor(root).issues.join(' '), /Review wrapper scripts\/review.sh\/run is missing/);
   writeFileSync(configFile, JSON.stringify(config));
-  const copy = join(root, 'plugins/agent-workflow');
+  const copy = join(root, 'plugins/halvard');
   mkdirSync(copy, { recursive: true });
-  writeFileSync(join(copy, 'package.json'), '{"name":"agent-workflow","version":"9.9.9"}');
-  mkdirSync(join(root, 'plugins/agent-workflow.next-leftover'));
+  writeFileSync(join(copy, 'package.json'), '{"name":"halvard","version":"9.9.9"}');
+  mkdirSync(join(root, 'plugins/halvard.next-leftover'));
   mkdirSync(join(root, '.claude'), { recursive: true });
   mkdirSync(join(root, '.claude/other.next-cache'));
   mkdirSync(join(root, '.claude/other.previous'));
   mkdirSync(join(root, '.claude/.other.workflow-cache'));
   mkdirSync(join(root, '.claude/.settings.json.workflow-leftover'));
   mkdirSync(join(root, 'plugins/other.next-cache'));
-  mkdirSync(join(root, 'plugins/agent-workflow.next-old.previous'));
-  mkdirSync(join(root, '..agent-workflow.json.workflow-leftover'));
+  mkdirSync(join(root, 'plugins/halvard.next-old.previous'));
+  mkdirSync(join(root, '..halvard.json.workflow-leftover'));
   const issues = doctor(root, 'codex').issues.join(' ');
   assert.match(issues!, /vendored package upgrade/);
   assert.doesNotMatch(issues!, /install-user --repair/);
   assert.match(issues!, /staging leftover/);
   assert.match(issues!, /settings.json.workflow-leftover/);
-  assert.match(issues!, /agent-workflow.next-old.previous/);
-  assert.match(issues!, /agent-workflow.json.workflow-leftover/);
+  assert.match(issues!, /halvard.next-old.previous/);
+  assert.match(issues!, /halvard.json.workflow-leftover/);
   assert.doesNotMatch(issues!, /other.next-cache|other.previous|other.workflow-cache/);
 });
 
@@ -251,10 +251,10 @@ test('README setup and task-start work in an isolated HOME and repository', (t) 
   const env = {
     ...process.env,
     HOME: home,
-    AGENT_WORKFLOW_HOME: join(home, '.config/agent-workflow'),
+    HALVARD_HOME: join(home, '.config/halvard'),
   };
   const run = (...args: string[]) =>
-    execFileSync(process.execPath, [join(pluginRoot, 'bin/workflow.ts'), ...args], {
+    execFileSync(process.execPath, [join(pluginRoot, 'bin/halvard.ts'), ...args], {
       cwd: root,
       env,
       encoding: 'utf8',
@@ -268,7 +268,7 @@ test('README setup and task-start work in an isolated HOME and repository', (t) 
   writeFileSync(path, JSON.stringify(proposal));
   run('setup-apply', '.', path);
   run('doctor', '--author', 'codex');
-  execFileSync('git', ['add', '.agent-workflow.json'], { cwd: root });
+  execFileSync('git', ['add', '.halvard.json'], { cwd: root });
   execFileSync(
     'git',
     [
@@ -278,7 +278,7 @@ test('README setup and task-start work in an isolated HOME and repository', (t) 
       'user.email=fixture@example.invalid',
       'commit',
       '-qm',
-      'Configure Agent Workflow',
+      'Configure Halvard',
     ],
     { cwd: root },
   );
@@ -291,10 +291,7 @@ test('README setup and task-start work in an isolated HOME and repository', (t) 
 test('task commands share one private workspace per repository and task, owned file by file', async (t) => {
   const root = fixture(t);
   const started = startTask(root, { id: 'team', title: 'Team', author: 'codex' });
-  assert.equal(
-    started.workspace,
-    join(process.env.AGENT_WORKFLOW_WORKSPACE!, basename(root), 'team'),
-  );
+  assert.equal(started.workspace, join(process.env.HALVARD_WORKSPACE!, basename(root), 'team'));
   assert.equal(statSync(started.workspace).mode & 0o077, 0);
   assert.equal(resumeTask(root, started.task).workspace, started.workspace);
   assert.equal(handoffTask(root, started.task, 'claude').workspace, started.workspace);
@@ -355,16 +352,15 @@ test('a workspace ownership denial names the prefix to use and where the file is
       tool_input: { file_path: path, content: 'x' },
     });
   assert.equal(
-    (await write(join(process.env.AGENT_WORKFLOW_WORKSPACE!, 'agent-workflow-fix-prompt.md')))
-      .reason,
-    'agent-workflow-fix-prompt.md in the agent workspace is not yours. Each file there has one writer, named by its prefix; write claude-agent-workflow-fix-prompt.md instead.',
+    (await write(join(process.env.HALVARD_WORKSPACE!, 'halvard-fix-prompt.md'))).reason,
+    'halvard-fix-prompt.md in the agent workspace is not yours. Each file there has one writer, named by its prefix; write claude-halvard-fix-prompt.md instead.',
   );
   assert.equal(
     (await write(join(started.workspace, 'codex-report.md'))).reason,
     'codex-report.md in the task workspace is not yours. Each file there has one writer, named by its prefix; write claude-report.md instead.',
   );
   assert.equal(
-    (await write(join(process.env.AGENT_WORKFLOW_WORKSPACE!, 'claude-fix-prompt.md'))).decision,
+    (await write(join(process.env.HALVARD_WORKSPACE!, 'claude-fix-prompt.md'))).decision,
     undefined,
   );
 });
@@ -402,7 +398,7 @@ test('workspace writes refuse hard links and workspaces must be private real dir
     call({ path: join(started.workspace, 'pi-alias.md'), content: 'x' }),
     /multiple hard links/,
   );
-  linkSync(join(root, '.agent-workflow.json'), join(started.workspace, 'codex-config.md'));
+  linkSync(join(root, '.halvard.json'), join(started.workspace, 'codex-config.md'));
   await assert.rejects(
     call(
       {
@@ -439,9 +435,9 @@ test('workspace writes refuse hard links and workspaces must be private real dir
   );
   const target = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-ws-target-')));
   t.after(() => rmSync(target, { recursive: true, force: true }));
-  symlinkSync(target, join(process.env.AGENT_WORKFLOW_WORKSPACE!, basename(root), 'linked'));
+  symlinkSync(target, join(process.env.HALVARD_WORKSPACE!, basename(root), 'linked'));
   assert.throws(() => taskWorkspace(root, 'linked'), /unsafe/);
-  mkdirSync(join(process.env.AGENT_WORKFLOW_WORKSPACE!, basename(root), 'shared'), { mode: 0o755 });
-  chmodSync(join(process.env.AGENT_WORKFLOW_WORKSPACE!, basename(root), 'shared'), 0o755);
+  mkdirSync(join(process.env.HALVARD_WORKSPACE!, basename(root), 'shared'), { mode: 0o755 });
+  chmodSync(join(process.env.HALVARD_WORKSPACE!, basename(root), 'shared'), 0o755);
   assert.throws(() => taskWorkspace(root, 'shared'), /unsafe/);
 });

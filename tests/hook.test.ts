@@ -15,7 +15,7 @@ for (const harness of ['claude', 'codex']) {
     const root = mkdtempSync(join(tmpdir(), 'workflow-hook-'));
     t.after(() => rmSync(root, { recursive: true, force: true }));
     execFileSync('git', ['init', '-q', '--initial-branch=main'], { cwd: root });
-    writeFileSync(join(root, '.agent-workflow.json'), '{"version":1}');
+    writeFileSync(join(root, '.halvard.json'), '{"version":1}');
     const payload = {
       cwd: root,
       session_id: 'native-hook',
@@ -46,10 +46,10 @@ test('ordinary prompts ignore malformed project config while approvals and tools
   const root = mkdtempSync(join(tmpdir(), 'workflow-prompt-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   execFileSync('git', ['init', '-q', '--initial-branch=main'], { cwd: root });
-  writeFileSync(join(root, '.agent-workflow.json'), '{invalid');
+  writeFileSync(join(root, '.halvard.json'), '{invalid');
   for (const harness of ['claude', 'codex']) {
     const payload = { cwd: root, session_id: 'prompt-hook', hook_event_name: 'UserPromptSubmit' };
-    for (const prompt of ['Fix the config', 'approve workflow invalid', undefined]) {
+    for (const prompt of ['Fix the config', 'approve halvard invalid', undefined]) {
       const result = spawnSync(process.execPath, [hook, harness], {
         input: JSON.stringify({ ...payload, prompt }),
         encoding: 'utf8',
@@ -58,7 +58,7 @@ test('ordinary prompts ignore malformed project config while approvals and tools
       assert.deepEqual(JSON.parse(result.stdout) as unknown, {});
     }
     for (const extra of [
-      { prompt: `approve workflow ${'a'.repeat(64)}` },
+      { prompt: `approve halvard ${'a'.repeat(64)}` },
       {
         hook_event_name: 'PreToolUse',
         tool_name: 'Write',

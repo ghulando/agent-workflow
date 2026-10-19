@@ -18,17 +18,10 @@ function fixture(t: TestContext) {
   const root = join(home, 'repo');
   mkdirSync(root);
   execFileSync('git', ['init', '-q', '--initial-branch=feature/demo'], { cwd: root });
-  writeFileSync(join(root, '.agent-workflow.json'), JSON.stringify({ version: 1 }));
-  const keys = [
-    'CLAUDE_CONFIG_DIR',
-    'CODEX_HOME',
-    'PI_CODING_AGENT_DIR',
-    'AGENT_WORKFLOW_WORKSPACE',
-  ];
+  writeFileSync(join(root, '.halvard.json'), JSON.stringify({ version: 1 }));
+  const keys = ['CLAUDE_CONFIG_DIR', 'CODEX_HOME', 'PI_CODING_AGENT_DIR', 'HALVARD_WORKSPACE'];
   const previous = keys.map((key) => process.env[key]);
-  const values = ['.claude', '.codex', '.pi/agent', '.agent-workflow'].map((dir) =>
-    join(home, dir),
-  );
+  const values = ['.claude', '.codex', '.pi/agent', '.halvard'].map((dir) => join(home, dir));
   keys.forEach((key, i) => (process.env[key] = values[i]));
   t.after(() => {
     keys.forEach((key, i) => {
@@ -51,7 +44,7 @@ function fixture(t: TestContext) {
   // The task ran from 30 to 20 minutes ago; the window reaches 40 minutes back and 40 ahead.
   const start = Date.now() - 30 * 60 * 1000;
   const at = (minutes: number) => new Date(start + minutes * 60 * 1000).toISOString();
-  const task = `.agent-workflow/${basename(root)}/demo`;
+  const task = `.halvard/${basename(root)}/demo`;
   put(`${task}/.repo`, root + '\n', start);
   put(`${task}/codex-report.md`, 'report', start + 10 * 60 * 1000);
   return { root, put, jsonl, at, task };
@@ -105,16 +98,16 @@ test('retro counts each harness hook denial and ignores the same text elsewhere'
           content: [{ type: 'text', text: `PreToolUse:Bash hook error: ${protectedBranch}` }],
         },
       },
-      claude(`approve workflow ${request}`, at(4)),
+      claude(`approve halvard ${request}`, at(4)),
       claude(result('workflow: gate passed on the current tree\n'), at(5)),
       claude(
         result(
-          'Exit code 1\nagent-workflow: gate failed: checks failed or timed out; fix the cause and rerun',
+          'Exit code 1\nhalvard: gate failed: checks failed or timed out; fix the cause and rerun',
         ),
         at(6),
       ),
       // Text after the failure marker that runGate never prints is reported only as other.
-      claude(result('agent-workflow: gate failed: secret customer text'), at(6)),
+      claude(result('halvard: gate failed: secret customer text'), at(6)),
       // Outside the repository and outside the window.
       claude(result(`PreToolUse:Bash hook error: ${protectedBranch}`), at(7), {
         cwd: '/elsewhere',
@@ -133,7 +126,7 @@ test('retro counts each harness hook denial and ignores the same text elsewhere'
     jsonl([
       { type: 'session_meta', timestamp: at(0), payload: { id: 'codex-1', cwd: root } },
       codexOutput(
-        `Script error:\nCommand blocked by PreToolUse hook: ${shipping}\nTo approve this one operation, send exactly: approve workflow ${request}. Command: git push https://secret-token@example.invalid`,
+        `Script error:\nCommand blocked by PreToolUse hook: ${shipping}\nTo approve this one operation, send exactly: approve halvard ${request}. Command: git push https://secret-token@example.invalid`,
         at(2),
       ),
       codexOutput(
@@ -181,13 +174,13 @@ test('retro counts each harness hook denial and ignores the same text elsewhere'
       ),
       // A blocked command never ran, so gate markers inside it are not gate results.
       codexOutput(
-        `Script error:\nCommand blocked by PreToolUse hook: ${protectedBranch}. Command: printf '%s\\n' x\nworkflow: gate passed on the current tree\nagent-workflow: gate failed: checks failed or timed out`,
+        `Script error:\nCommand blocked by PreToolUse hook: ${protectedBranch}. Command: printf '%s\\n' x\nworkflow: gate passed on the current tree\nhalvard: gate failed: checks failed or timed out`,
         at(5),
       ),
       codexOutput(
         JSON.stringify({
           status: 'rejected',
-          reason: `Command blocked by PreToolUse hook: ${protectedBranch}. Command: printf x\nworkflow: gate passed on the current tree\nagent-workflow: gate failed: checks failed or timed out`,
+          reason: `Command blocked by PreToolUse hook: ${protectedBranch}. Command: printf x\nworkflow: gate passed on the current tree\nhalvard: gate failed: checks failed or timed out`,
         }),
         at(5),
       ),
@@ -214,7 +207,7 @@ test('retro counts each harness hook denial and ignores the same text elsewhere'
       {
         type: 'event_msg',
         timestamp: at(6),
-        payload: { type: 'user_message', message: `approve workflow ${request}` },
+        payload: { type: 'user_message', message: `approve halvard ${request}` },
       },
     ]),
   );
@@ -227,9 +220,9 @@ test('retro counts each harness hook denial and ignores the same text elsewhere'
     '.pi/agent/sessions/--repo--/pi-1.jsonl',
     jsonl([
       { type: 'session', id: 'pi-1', timestamp: at(0), cwd: root },
-      pi(`agent-workflow blocked: ${protectedBranch}`, true, at(1)),
-      pi(`agent-workflow blocked: ${shipping}\nSend: approve workflow ${request}`, true, at(2)),
-      pi(`agent-workflow blocked: ${protectedBranch}`, false, at(3)),
+      pi(`halvard blocked: ${protectedBranch}`, true, at(1)),
+      pi(`halvard blocked: ${shipping}\nSend: approve halvard ${request}`, true, at(2)),
+      pi(`halvard blocked: ${protectedBranch}`, false, at(3)),
       pi(protectedBranch, true, at(4)),
     ]),
   );
@@ -283,10 +276,10 @@ test('retro reports workspace files, review verdicts and earlier retro logs', as
     `${task}/codex-review-round2.md`,
     '# Review round 2 by codex\n\nVerdict: pass. Author: claude.\n',
   );
-  put('.agent-workflow/claude-retro-log.md', 'log');
-  put('.agent-workflow/pi-retro-log.md', 'log');
-  put('.agent-workflow/ollama-retro-log.md', 'log');
-  put('.agent-workflow/notes.md', 'not a retro log');
+  put('.halvard/claude-retro-log.md', 'log');
+  put('.halvard/pi-retro-log.md', 'log');
+  put('.halvard/ollama-retro-log.md', 'log');
+  put('.halvard/notes.md', 'not a retro log');
   const retro = await retroEvents(root, 'demo');
   assert.deepEqual(
     retro.files.map((file) => file.name),
@@ -316,7 +309,7 @@ test('retro includes records by their own time even when the transcript file is 
       {
         type: 'message',
         timestamp: at(1),
-        message: { role: 'user', content: [{ type: 'text', text: `approve workflow ${request}` }] },
+        message: { role: 'user', content: [{ type: 'text', text: `approve halvard ${request}` }] },
       },
     ]),
     Date.now() - 24 * 60 * 60 * 1000,

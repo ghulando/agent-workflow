@@ -44,7 +44,7 @@ export function privateDirectory(path: string) {
 }
 
 export function stateDirectory(root: string) {
-  const base = privateDirectory(join(tmpdir(), `agent-workflow-${process.getuid?.() ?? 'user'}`));
+  const base = privateDirectory(join(tmpdir(), `halvard-${process.getuid?.() ?? 'user'}`));
   return privateDirectory(join(base, digest(root)));
 }
 
