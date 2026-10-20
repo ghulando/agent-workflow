@@ -1,5 +1,9 @@
 # Halvard
 
+<p align="center">
+  <img src="assets/halvard-mascot.png" alt="Halvard mascot: a bearded guardian in a rune-marked hood" width="240">
+</p>
+
 Halvard is a personal development assistant for Claude Code, Codex, Pi, Grok Build and the Cursor CLI. The name is Old Norse for "rock guardian": it guards your repositories and runs the work with you. The agent works on a feature or fix branch and keeps notes in a task file. A task counts as done only after it passes your project's checks and a review by a different agent.
 
 ## How it works
