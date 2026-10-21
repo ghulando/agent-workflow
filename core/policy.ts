@@ -60,7 +60,7 @@ export function evaluatePolicy({
         ? `No work on protected branch ${branch}. Run each shipping command alone and plain, for example git push origin ${branch}, without a pipe, chain, cd or redirect; it then asks for approval.${opaque ? ' Write names literally, without variables or substitution.' : ''}`
         : opaque
           ? `${opaqueReason} For real changes, create a feature or fix branch first.`
-          : `No work on protected branch ${branch}. Create a feature or fix branch first.`,
+          : `No work on protected branch ${branch}. Create a feature or fix branch first. To trust a test or query command as a read, list it in readCommands.`,
     };
   }
   return null;

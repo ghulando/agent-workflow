@@ -1,9 +1,9 @@
 import './environment.ts';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import test from 'node:test';
 import { shellKind } from '../core/shell.ts';
 import { handle, runGate } from '../core/runtime.ts';
@@ -95,6 +95,131 @@ test('branch classification requires a branch operation', (t) => {
     assert.equal(shellKind(command, [], root, root), 'read', command);
   }
   assert.equal(shellKind('git switch -c fix/x && touch source.txt', [], root, root), 'mutation');
+});
+
+test('only work on the project tree counts against a protected branch', (t) => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-scope-root-')));
+  const other = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-scope-other-')));
+  const home = process.env.HOME;
+  t.after(() => {
+    process.env.HOME = home;
+    rmSync(root, { recursive: true, force: true });
+    rmSync(other, { recursive: true, force: true });
+  });
+  process.env.HOME = other;
+  const inspect = [{ prefix: ['inspect', 'read'], options: {}, positionals: { min: 1, max: 1 } }];
+  for (const command of [
+    `cd ${other} && cat skills/halvard/SKILL.md`,
+    `cd ${other} && ls && cd ${root} && git status`,
+    'cd ~ && cat MEMORY.md',
+    `cd ${other} && cat skills/*/SKILL.md`,
+  ]) {
+    assert.equal(shellKind(command, inspect, root, root), 'read', command);
+  }
+  for (const command of [
+    `echo note >> ${other}/MEMORY.md`,
+    "echo '- [Note](note.md) - hook' >> ~/MEMORY.md",
+  ]) {
+    assert.equal(shellKind(command, inspect, root, root), 'outside', command);
+  }
+  for (const command of [
+    `cd ${root} && git switch -c fix/x`,
+    `cd ${root} && git status && git checkout -b feature/y`,
+  ]) {
+    assert.equal(shellKind(command, inspect, root, root), 'branch', command);
+  }
+  // Git and configured commands load configuration from the directory they run in.
+  for (const command of [
+    `cd ${other} && git status`,
+    `cd ${other} && inspect read x`,
+    `cd ${other} && git switch -c fix/x`,
+    `cd ${root} && cd ${other} && git status && cd ${root} && git switch -c fix/x`,
+    'echo note >> notes.md',
+    `echo note > ${root}/notes.md`,
+    `cd ${other} && echo note > ${root}/notes.md`,
+    `uv run pytest -q > ${other}/log`,
+    `git switch -c fix/x > ${other}/log`,
+    `cd ${other} && touch notes.md`,
+    // A relative target depends on a directory guess, so it never counts as outside.
+    `cd ${other} && printf x > notes.md`,
+  ]) {
+    assert.equal(shellKind(command, inspect, root, root), 'mutation', command);
+  }
+  for (const command of [
+    `echo note >| ${other}/MEMORY.md`,
+    `echo note > "$HOME/MEMORY.md"`,
+    `echo note > ${other}/*.md`,
+  ]) {
+    assert.equal(shellKind(command, inspect, root, root), 'opaque', command);
+  }
+  assert.equal(shellKind(`echo note >> ${other}/MEMORY.md`, []), 'mutation');
+});
+
+test('a write counts as outside only where the shell surely runs it outside the project', (t) => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-scope-root-')));
+  const other = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-scope-other-')));
+  t.after(() => {
+    rmSync(root, { recursive: true, force: true });
+    rmSync(other, { recursive: true, force: true });
+  });
+  writeFileSync(join(other, 'plain.txt'), 'x\n');
+  mkdirSync(join(root, '~'));
+  symlinkSync(root, join(other, 'into'));
+  symlinkSync(join(root, 'created.md'), join(other, 'dangling'));
+  mkdirSync(join(other, 'outside'));
+  mkdirSync(join(root, 'sub'));
+  mkdirSync(join(other, 'a'));
+  symlinkSync(join(other, 'outside'), join(root, 'link'));
+  symlinkSync(join(root, 'sub'), join(other, 'a/link'));
+  execFileSync('git', ['init', '-q', join(root, 'vendor')]);
+  const workspace = realpathSync(process.env.HALVARD_WORKSPACE!);
+  const inspect = [{ prefix: ['inspect', 'read'], options: {}, positionals: { min: 1, max: 1 } }];
+  for (const command of [
+    // A cd in a pipeline or background job, or one that may fail or be skipped,
+    // leaves the next segment in the project.
+    `cd ${other} | echo note > notes.md`,
+    `cd ${other} & echo note > notes.md`,
+    `cd ${other} ; echo note > notes.md`,
+    `cd ${other}/plain.txt && echo note > notes.md`,
+    `cd ${other} && ls || echo note > notes.md`,
+    `true || cd ${other} && echo note > notes.md`,
+    "cd '~' && echo note > notes.md",
+    'cd "~" && echo note > notes.md',
+    // Symlinks and the team workspace.
+    `echo note > ${other}/into/notes.md`,
+    `echo note > ${other}/dangling`,
+    `echo note > ${other}/a/link/../source.txt`,
+    `echo note > ${workspace}/task/claude-notes.md`,
+    // Configured commands load the nested repository's configuration.
+    'cd vendor && inspect read x',
+  ]) {
+    assert.equal(shellKind(command, inspect, root, root), 'mutation', command);
+  }
+  for (const command of [
+    // A background list, a skipped cd or a logical .. leaves git where the model cannot follow.
+    `cd ${other} ; false && cd ${root} && true ; git status`,
+    `cd ${other} && true & git status`,
+    `false && cd ${other} && true ; git status`,
+    `cd ${other}/a/link && cd .. && git status`,
+    `cd ../${basename(root)} && git status`,
+    `cd sub && cd ../../${basename(root)} && git status`,
+    // Configured commands beside a branch switch keep their directory limit.
+    `cd vendor && inspect read x && cd ${root} && git switch -c fix/x`,
+  ]) {
+    assert.equal(shellKind(command, inspect, root, root), 'mutation', command);
+  }
+  assert.equal(
+    shellKind('inspect read x && git switch -c fix/x', inspect, root, join(root, 'vendor')),
+    'mutation',
+  );
+  for (const command of [
+    'cd vendor && cat x',
+    'cd link && cd .. && git status',
+    `cd ${other} && ls | cat ${other}/plain.txt`,
+    'inspect read x',
+  ]) {
+    assert.equal(shellKind(command, inspect, root, root), 'read', command);
+  }
 });
 
 for (const harness of ['pi', 'claude', 'codex']) {

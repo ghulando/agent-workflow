@@ -1005,6 +1005,91 @@ test('an agent can leave a protected branch through cd and git -C spellings only
   );
 });
 
+test('a protected branch allows reads anywhere, writes outside the project and trusted test runs', async (t) => {
+  const root = fixture(t, {
+    readCommands: [
+      {
+        prefix: ['uv', 'run', 'pytest'],
+        options: { '-q': 'flag' },
+        positionals: { min: 0, max: 0 },
+      },
+    ],
+  });
+  execFileSync('git', ['checkout', '-q', '-b', 'main'], { cwd: root });
+  const other = realpathSync(mkdtempSync(join(tmpdir(), 'workflow-other-')));
+  t.after(() => rmSync(other, { recursive: true, force: true }));
+  writeFileSync(join(other, 'SKILL.md'), 'skill\n');
+  for (const command of [
+    `cd ${quote(other)} && cat SKILL.md`,
+    `echo '- [Note](note.md) - hook' >> ${quote(other)}/MEMORY.md`,
+    `cd ${quote(realpathSync(root))} && git switch -c fix/login`,
+    'uv run pytest -q',
+  ]) {
+    assert.equal(
+      (await call(root, 'claude', 'PreToolUse', 'Bash', { command })).decision,
+      undefined,
+      command,
+    );
+  }
+  for (const command of [
+    `echo note >> ${quote(other)}/MEMORY.md`,
+    `cd ${quote(other)} && cat SKILL.md`,
+  ]) {
+    assert.equal(
+      (await call(root, 'pi', 'PreToolUse', 'Bash', { command }, { permission_mode: 'plan' }))
+        .decision,
+      undefined,
+      command,
+    );
+  }
+  symlinkSync(realpathSync(root), join(other, 'into'));
+  symlinkSync(join(realpathSync(root), 'docs'), join(other, 'sub'));
+  symlinkSync(join(realpathSync(root), 'created.md'), join(other, 'dangling'));
+  execFileSync('git', ['init', '-q', join(root, 'vendor')]);
+  const workspace = realpathSync(process.env.HALVARD_WORKSPACE!);
+  for (const command of [
+    'echo note >> source.txt',
+    `cd ${quote(other)} | echo note > source.txt`,
+    `cd ${quote(other)} && true & echo note > source.txt`,
+    `cd ${quote(other)} && git status`,
+    'uv run pytest -q --cache-clear',
+    `echo note > ${quote(other)}/into/source.txt`,
+    `echo note > ${quote(other)}/dangling`,
+    `echo note > ${quote(other)}/sub/../source.txt`,
+    `echo note > ${quote(workspace)}/login/claude-notes.md`,
+    'cd vendor && uv run pytest -q',
+  ]) {
+    for (const extra of [{}, { permission_mode: 'plan' }]) {
+      assert.equal(
+        (await call(root, 'claude', 'PreToolUse', 'Bash', { command }, extra)).decision,
+        'deny',
+        command,
+      );
+    }
+  }
+  assert.match(
+    (await call(root, 'claude', 'PreToolUse', 'Bash', { command: 'uv run cargoo-graph query x' }))
+      .reason!,
+    /readCommands/,
+  );
+});
+
+test('skills that commit stage code by name and ask before including workflow files', () => {
+  for (const skill of ['halvard', 'halvard-team']) {
+    const text = readFileSync(new URL(`../skills/${skill}/SKILL.md`, import.meta.url), 'utf8');
+    for (const required of [
+      /stage[^.]*code and tests by name/i,
+      /never `git add -A`, `git add \.`/,
+      /taskDirectory/,
+      /`\.halvard\.json`/,
+      /reviewExceptions/,
+      /reviewDeferrals/,
+    ]) {
+      assert.match(text, required, skill);
+    }
+  }
+});
+
 test('a gate inside a pipeline, chain or redirect is refused before it loses its receipt', async (t) => {
   const root = fixture(t);
   execFileSync('git', ['checkout', '-q', '-b', 'feature/gate'], { cwd: root });
@@ -1670,6 +1755,10 @@ test('cd into another repository is not a read, while cd inside the project is',
     'cd core && ls',
     `cd ${root} && git status`,
     'cd core && cd .. && git status',
+    // Built-in readers act the same in any directory.
+    'cd ~ && ls',
+    'cd - && ls',
+    `cd ${other} && ls *.txt`,
   ]) {
     assert.equal(
       (await call(root, 'pi', 'PreToolUse', 'Bash', { command }, { permission_mode: 'plan' }))
@@ -1682,9 +1771,7 @@ test('cd into another repository is not a read, while cd inside the project is',
     `cd ${other} && git status`,
     'cd .. && git status',
     'cd && git status',
-    'cd ~ && ls',
-    'cd - && ls',
-    `cd ${other} && ls *.txt`,
+    'cd - && git status',
   ]) {
     assert.equal(
       (await call(root, 'pi', 'PreToolUse', 'Bash', { command }, { permission_mode: 'plan' }))
@@ -1855,7 +1942,7 @@ test('a shipping command denied on a protected branch says how to run it', async
   }
   assert.equal(
     (await bash('touch source.txt')).reason,
-    'No work on protected branch main. Create a feature or fix branch first.',
+    'No work on protected branch main. Create a feature or fix branch first. To trust a test or query command as a read, list it in readCommands.',
   );
 });
 
@@ -2075,7 +2162,7 @@ for (const harness of ['pi', 'claude', 'codex']) {
     }
     assert.equal(
       (await call(root, harness, 'PreToolUse', 'Bash', { command: 'touch changed.txt' })).reason,
-      'No work on protected branch main. Create a feature or fix branch first.',
+      'No work on protected branch main. Create a feature or fix branch first. To trust a test or query command as a read, list it in readCommands.',
     );
     assert.equal(
       (

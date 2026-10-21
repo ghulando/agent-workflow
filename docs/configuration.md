@@ -152,6 +152,18 @@ Any flag after that prefix is rejected. For a command with options, describe exa
 }
 ```
 
+A test run or query can still write files such as caches, and the guard cannot see what its code does. A project that accepts that can trust it as a read, so it runs on a protected branch:
+
+```json
+{
+  "readCommands": [{
+    "prefix": ["uv", "run", "pytest"],
+    "options": {"-q": "flag"},
+    "positionals": {"min": 0, "max": 0}
+  }]
+}
+```
+
 Option values must be separate arguments. The guard rejects unknown options, abbreviations, combined short flags and `--name=value`. It also rejects `--` unless the prefix includes it, because programs may forward whatever follows. Trust only executables whose options you understand. Personal entries apply in every repository.
 
 To query an existing graphify graph, add these entries to the personal `readCommands` in `~/.config/halvard/personal.json`:
@@ -185,7 +197,7 @@ To query an existing graphify graph, add these entries to the personal `readComm
 
 They allow reads only. Halvard never builds, updates or installs graphify. Add `graphify-out/` to the project's `.gitignore`.
 
-The built-in classifier also accepts pipes between readers and discard redirects such as `2>/dev/null`. Variables, `$(...)`, backticks, output files and loops make a command unclassifiable, so the guard denies it wherever only reads may run. A glob needs a literal directory prefix. `git -C` counts as a read only when it names the project root by absolute path. A `cd` before a read must stay inside the project. Git reads inside a nested repository are not reads, because that repository can supply executable Git configuration. `--help` and `--version` count as reads only for the built-in readers and for `git`, `rg`, `grep`, `find`, `sed`, `jq`, `node`, `npm` and `herdr`.
+The built-in classifier also accepts pipes between readers and discard redirects such as `2>/dev/null`. Variables, `$(...)`, backticks, loops and output redirections other than a plain `>` or `>>` to a literal path make a command unclassifiable, so the guard denies it wherever only reads may run. A read whose plain `>` or `>>` target is an absolute or `~/` path outside the project and the team workspace passes; a relative target, a target with a `..` component or any other path is a change. A glob needs a literal directory prefix. `git -C` counts as a read only when it names the project root by absolute path. Built-in readers count as reads after a `cd` anywhere. Git and `readCommands` entries count as reads only inside the project and outside nested repositories, because the directory they run in can supply executable configuration. A `cd` moves later commands only inside an unbroken `&&` chain from the start of the command, and a relative `cd` may not climb above the starting directory. After the first `;`, `||`, `&` or newline that follows a `cd`, the guard treats the directory as unknown. `--help` and `--version` count as reads only for the built-in readers and for `git`, `rg`, `grep`, `find`, `sed`, `jq`, `node`, `npm` and `herdr`.
 
 Older files may still contain `protectedPaths` or `workflow.shellApproval`. The guard accepts and ignores both. On a feature branch, shell commands never ask except commit, merge, push and anything containing `publish`, `push`, `deploy`, `release` or `upload`. The guard reads the command text. It catches ordinary spellings, including `/usr/bin/git`, Git global options, chains, line continuations and `sh -c` scripts. It misses a command built in a variable or run from a script file, and shell commands can still write protected files. The hooks are guardrails for the workflow and give no OS-level protection; use the harness sandbox when you need that.
 
