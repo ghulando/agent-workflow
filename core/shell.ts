@@ -1,6 +1,9 @@
 import type { ReadCommand, ShellKind } from './types.ts';
-import { existsSync, realpathSync } from 'node:fs';
-import { dirname, isAbsolute, resolve } from 'node:path';
+import { existsSync, realpathSync, statSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { dirname, isAbsolute, relative, resolve } from 'node:path';
+import { workspaceRoot } from './flow-config.ts';
+import { inside, outsideProject, physicalPath } from './project.ts';
 
 // Redirections that discard output or merge stderr cannot write project files.
 const DISCARD = /^(?:[12]?>\/dev\/null|2>&1)(?=[\s;|&]|$)/;
@@ -8,20 +11,41 @@ const DISCARD = /^(?:[12]?>\/dev\/null|2>&1)(?=[\s;|&]|$)/;
 // Unknown shell syntax is opaque. A command classifier is not a shell sandbox.
 function parse(text: string, comments = true) {
   const segments: string[][] = [];
+  // The operator that follows each segment; '' after the last.
+  const operators: string[] = [];
   let words: string[] = [];
   let word = '';
   let started = false;
   let quote = '';
   let glob = false;
   let comment = false;
+  // Output redirections to a literal path, by the segment that writes them.
+  const redirects: { segment: number; path: string }[] = [];
+  let redirecting = false;
+  let quoted = false;
+  let orphan = false;
   const pushWord = () => {
-    if (started) words.push(word);
+    if (started && redirecting) {
+      // A ~ in a word with quotes may be literal; reading it so keeps the write in view.
+      const path = quoted && word.startsWith('~') ? `./${word}` : word;
+      redirects.push({ segment: segments.length, path });
+      redirecting = false;
+    } else if (started) {
+      // A quoted ~ in a cd operand is a literal name, not the home directory.
+      const literal = quoted && words.length === 1 && words[0] === 'cd' && word.startsWith('~');
+      words.push(literal ? `./${word}` : word);
+    }
     word = '';
     started = false;
+    quoted = false;
   };
-  const pushSegment = () => {
+  const pushSegment = (operator = '') => {
     pushWord();
-    if (words.length) segments.push(words);
+    if (redirecting) orphan = true;
+    if (words.length) {
+      segments.push(words);
+      operators.push(operator);
+    } else if (redirects.some((r) => r.segment === segments.length)) orphan = true;
     words = [];
   };
   for (let i = 0; i < text.length; i++) {
@@ -65,11 +89,20 @@ function parse(text: string, comments = true) {
       continue;
     }
     if (ch === '"' || ch === "'") {
+      quoted = true;
       quote = ch;
       started = true;
       continue;
     }
+    // Plain > and >> take the next word as their target; other forms stay opaque.
+    if (ch === '>' && !started && !redirecting) {
+      if (text[i + 1] === '>') i++;
+      if (/[>|&]/.test(text[i + 1] ?? '')) return null;
+      redirecting = true;
+      continue;
+    }
     if (/[*?[\]]/.test(ch)) {
+      if (redirecting) return null;
       glob = true;
       word += ch;
       started = true;
@@ -77,7 +110,8 @@ function parse(text: string, comments = true) {
     }
     if (/[$`\\()<>{}]/.test(ch)) return null;
     if (/[;|&\n]/.test(ch)) {
-      pushSegment();
+      const operator = /[|&]/.test(ch) && text[i + 1] === ch ? ch + text[++i]! : ch;
+      pushSegment(operator);
       continue;
     }
     if (/\s/.test(ch)) {
@@ -89,13 +123,15 @@ function parse(text: string, comments = true) {
   }
   if (quote) return null;
   pushSegment();
-  return segments.length ? { segments, glob, comment } : null;
+  return segments.length && !orphan ? { segments, operators, glob, comment, redirects } : null;
 }
 
-// Callers that act on exact words get no comment leniency.
+// Callers that act on exact words get no comment or redirect leniency.
 export function commands(text: string) {
   const parsed = parse(text);
-  return parsed && !parsed.glob && !parsed.comment ? parsed.segments : null;
+  return parsed && !parsed.glob && !parsed.comment && !parsed.redirects.length
+    ? parsed.segments
+    : null;
 }
 
 const SHIPPING_GIT = new Set(['commit', 'merge', 'push']);
@@ -431,24 +467,108 @@ function nestedRepository(dir: string, root: string) {
   return false;
 }
 
-// Reads after cd run in the target directory, so another repository's
-// configuration applies there just as with git -C.
-function staysInProject(segments: string[][], root: string | undefined, cwd: string | undefined) {
-  if (!root) return true;
-  let dir = cwd ?? root;
-  for (const segment of segments) {
-    if (segment[0] === 'git' && nestedRepository(dir, root)) return false;
-    if (!isCd(segment)) continue;
-    const target = segment[1];
-    if (!target || target.startsWith('-') || target.startsWith('~')) return false;
-    try {
-      dir = realpathSync(resolve(dir, target));
-    } catch {
-      return false;
-    }
-    if (dir !== root && !dir.startsWith(root + '/')) return false;
+// The shell expands a leading ~ in cd and redirection targets.
+function expandHome(path: string) {
+  return path === '~' || path.startsWith('~/') ? homedir() + path.slice(1) : path;
+}
+
+// cd follows the logical path by default, so .. undoes a symlink rather than
+// leaving its target.
+function changeDirectory(logical: string, operand: string | undefined) {
+  const target = expandHome(operand ?? '~');
+  if (target.startsWith('-') || target.startsWith('~')) return null;
+  try {
+    const next = resolve(logical, target);
+    return statSync(next).isDirectory() ? next : null;
+  } catch {
+    return null;
   }
-  return true;
+}
+
+// True when a relative path's .. steps leave the starting directory at any point.
+function climbs(depth: string, operand: string) {
+  let level = depth ? depth.split('/').length : 0;
+  for (const part of operand.split('/')) {
+    if (part === '..') level--;
+    else if (part && part !== '.') level++;
+    if (level < 0) return true;
+  }
+  return false;
+}
+
+function physical(logical: string | null) {
+  try {
+    return logical && realpathSync(logical);
+  } catch {
+    return null;
+  }
+}
+
+// Each segment runs where the cds before it lead; null where that is unknown.
+// A cd counts only inside an unbroken && chain from the start of the command,
+// where every later segment runs only after it succeeded. The first ;, ||, &
+// or newline after a cd may follow a skipped or failed cd or end a background
+// list, so the directory is unknown from there. The shell's logical starting
+// directory is unknown too, so a relative cd may not climb above it.
+function directories(
+  segments: string[][],
+  operators: string[],
+  root: string | undefined,
+  cwd: string | undefined,
+) {
+  const start = cwd ?? root ?? null;
+  let logical = start;
+  let anchored = false;
+  let chained = true;
+  let moved = false;
+  return segments.map((segment, i) => {
+    const here = physical(logical);
+    if (isCd(segment)) {
+      const operand = expandHome(segment[1] ?? '~');
+      const next =
+        logical && chained && ['', '&&'].includes(operators[i - 1] ?? '') && operators[i] === '&&'
+          ? changeDirectory(logical, operand)
+          : null;
+      anchored ||= isAbsolute(operand);
+      logical = next && (anchored || !climbs(relative(start!, logical!), operand)) ? next : null;
+      moved = true;
+    }
+    if (!['', '&&', '|'].includes(operators[i]!)) {
+      chained = false;
+      if (moved) logical = null;
+    }
+    return here;
+  });
+}
+
+// Built-in readers act the same anywhere. Git and configured commands load the
+// configuration of the directory they run in, so they read only in the project
+// and outside nested repositories.
+function readsIn(
+  segment: string[],
+  dir: string | null,
+  readCommands: ReadCommand[],
+  root?: string,
+) {
+  if (isCd(segment)) return true;
+  if (!root) return isRead(segment, readCommands, root);
+  const contained = dir !== null && inside(root, dir) && !nestedRepository(dir, root);
+  if (segment[0] === 'git') return contained && isRead(segment, readCommands, root);
+  return isRead(segment, contained ? readCommands : [], root);
+}
+
+// A redirection writes the project unless its target is provably outside it.
+// Only absolute and ~/ targets qualify, so no directory guess decides a write.
+// The kernel applies .. after following a symlink, path resolution before it.
+// Team workspace files keep their one-writer rule, which only file tools check.
+function writesOutside(path: string, root: string) {
+  const target = expandHome(path);
+  if (!isAbsolute(target) || target.split('/').includes('..')) return false;
+  const base = workspaceRoot();
+  return (
+    outsideProject(root, root, target) &&
+    !inside(existsSync(base) ? realpathSync(base) : base, physicalPath(target))
+  );
 }
 
 // git -C naming the project root runs exactly as plain git there.
@@ -488,64 +608,101 @@ export function shellKind(
   // with '#' is a missing command that runs nothing. Never a branch exemption.
   if (classify(parsed, readCommands, root, cwd) !== 'read') return 'mutation';
   const plain = parse(text, false);
-  const segments = plain?.segments.filter((segment) => !segment[0]!.startsWith('#'));
+  const kept = plain?.segments.map((segment) => !segment[0]!.startsWith('#'));
+  const segments = plain?.segments.filter((_, i) => kept![i]);
   return plain &&
     segments?.length &&
-    classify({ ...plain, segments }, readCommands, root, cwd) === 'read'
+    classify(
+      { ...plain, segments, operators: plain.operators.filter((_, i) => kept![i]) },
+      readCommands,
+      root,
+      cwd,
+    ) === 'read'
     ? 'read'
     : 'opaque';
 }
 
 function classify(
-  { segments, glob }: { segments: string[][]; glob: boolean },
+  {
+    segments,
+    operators,
+    glob,
+    redirects,
+  }: {
+    segments: string[][];
+    operators: string[];
+    glob: boolean;
+    redirects: { segment: number; path: string }[];
+  },
   readCommands: ReadCommand[],
   root?: string,
   cwd?: string,
 ): ShellKind {
-  const contained = staysInProject(segments, root, cwd);
+  const dirs = directories(segments, operators, root, cwd);
+  let kind: ShellKind;
   if (glob) {
-    return contained &&
-      segments.every((s) => {
-        if (isCd(s) || GLOB_READERS.has(s[0]!)) return true;
-        // Path-prefixed patterns cannot expand into options. Bare patterns need --.
-        const delimiter = s.indexOf('--');
-        // Only recognize a delimiter after operands or known argument-free flags.
-        const flags = new Set([
-          '-n',
-          '--line-number',
-          '--no-pager',
-          '--literal-pathspecs',
-          '--no-optional-locks',
-        ]);
-        const endOptions =
-          s[0]! !== 'find' &&
-          delimiter > 0 &&
-          s.slice(1, delimiter).every((arg) => !arg.startsWith('-') || flags.has(arg))
-            ? delimiter
-            : -1;
-        const safe = s.every(
-          (arg, i) =>
-            !/[*?[\]]/.test(arg) ||
-            (i > 0 &&
-              ((endOptions > 0 && i > endOptions) ||
-                arg.slice(0, arg.search(/[*?[\]]/)).includes('/'))),
-        );
-        // Only built-ins with safe multiple operands: expansion can multiply arguments.
-        return (
-          ['rg', 'find', 'git', 'sort', 'sed'].includes(s[0]!) &&
-          safe &&
-          isRead(s, readCommands, root)
-        );
-      })
+    kind = segments.every((s, index) => {
+      if (isCd(s) || GLOB_READERS.has(s[0]!)) return true;
+      // Path-prefixed patterns cannot expand into options. Bare patterns need --.
+      const delimiter = s.indexOf('--');
+      // Only recognize a delimiter after operands or known argument-free flags.
+      const flags = new Set([
+        '-n',
+        '--line-number',
+        '--no-pager',
+        '--literal-pathspecs',
+        '--no-optional-locks',
+      ]);
+      const endOptions =
+        s[0]! !== 'find' &&
+        delimiter > 0 &&
+        s.slice(1, delimiter).every((arg) => !arg.startsWith('-') || flags.has(arg))
+          ? delimiter
+          : -1;
+      const safe = s.every(
+        (arg, i) =>
+          !/[*?[\]]/.test(arg) ||
+          (i > 0 &&
+            ((endOptions > 0 && i > endOptions) ||
+              arg.slice(0, arg.search(/[*?[\]]/)).includes('/'))),
+      );
+      // Only built-ins with safe multiple operands: expansion can multiply arguments.
+      return (
+        ['rg', 'find', 'git', 'sort', 'sed'].includes(s[0]!) &&
+        safe &&
+        readsIn(s, dirs[index] ?? null, readCommands, root)
+      );
+    })
       ? 'read'
       : 'opaque';
+  } else if (segments.every((s, i) => readsIn(s, dirs[i] ?? null, readCommands, root))) {
+    kind = 'read';
+  } else {
+    const leaves = (s: string[], i: number) => {
+      const dir = dirs[i] ?? null;
+      return (!root || (dir !== null && inside(root, dir))) && leavesBranch(s, root, dir ?? cwd);
+    };
+    kind =
+      segments.some(leaves) &&
+      segments.every(
+        (s, i) =>
+          leaves(s, i) ||
+          // The runtime checks checkout names in the root, so a cd may lead only there.
+          (isCd(s) && (!root || dirs[i + 1] === root)) ||
+          // A git read rides along with the switch, which runs that repository's configuration anyway.
+          (!isCd(s) &&
+            (s[0] === 'git'
+              ? isRead(s, readCommands, root)
+              : readsIn(s, dirs[i] ?? null, readCommands, root))),
+      )
+        ? 'branch'
+        : 'mutation';
   }
-  if (contained && segments.every((s) => isCd(s) || isRead(s, readCommands, root))) return 'read';
-  if (
-    segments.some((s) => leavesBranch(s, root, cwd)) &&
-    segments.every((s) => leavesBranch(s, root, cwd) || isRead(s, readCommands, root))
-  ) {
-    return 'branch';
-  }
-  return 'mutation';
+  if (!redirects.length) return kind;
+  // Writing outside the project is governed by the harness, as for file tools.
+  return kind === 'read' && root && redirects.every((r) => writesOutside(r.path, root))
+    ? 'outside'
+    : kind === 'opaque'
+      ? kind
+      : 'mutation';
 }

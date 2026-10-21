@@ -29,6 +29,8 @@ A passing recorded review, including round 1, supplies the review receipt for co
 
 Show what changed, why, and verification evidence. Before asking to commit, offer a [halvard-retro](../halvard-retro/SKILL.md) and run it only on the user's yes. Commit, merge, push, publish, deploy and external ticket/chat updates require explicit authorization. An implementation plan is not shipping approval. Never approve your own workflow request.
 
+On the user's yes to commit, stage code and tests by name: never `git add -A`, `git add .` or `git commit -a`. Ask separately whether to include the task files under the configured `taskDirectory`, and whether to include the `.halvard.json` changes, naming any change to `reviewExceptions` or `reviewDeferrals`. Stage each only on its own yes. Show `git status --short` before committing so the user sees what goes in and what stays out.
+
 New repos use [halvard-bootstrap](../halvard-bootstrap/SKILL.md) for stack rules and skills, then [halvard-setup](../halvard-setup/SKILL.md). Use halvard-bootstrap too when an existing repository lacks stack skills. Plan/review sessions are read-only; exit native plan mode (Pi: /plan) before implementation or running checks.
 
 Adapted from Pstack poteto-mode and Matt Pocock implement. See ../../UPSTREAM.md for pinned sources and licenses.

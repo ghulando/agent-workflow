@@ -196,7 +196,7 @@ export type Action =
   | { kind: 'workspace'; paths: string[] }
   | { kind: 'read' | 'outside' | 'unknown' };
 
-export type ShellKind = 'read' | 'branch' | 'opaque' | 'mutation';
+export type ShellKind = 'read' | 'outside' | 'branch' | 'opaque' | 'mutation';
 
 export interface HookResult {
   decision?: 'deny' | 'ask';

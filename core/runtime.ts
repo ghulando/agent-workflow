@@ -384,19 +384,23 @@ export async function handle(harness: string | undefined, raw: unknown): Promise
     // Checkout also accepts file paths. Only existing local branch names are a
     // safe branch exemption; otherwise it could restore files on main.
     if (kind === 'branch' && action.kind === 'shell') {
+      // A cd in a branch command leads to the root.
+      let dir = action.cwd;
       for (const written of commands(action.command)!) {
-        const segment = rootGit(written, root, action.cwd);
+        if (written[0] === 'cd') dir = root;
+        const segment = rootGit(written, root, dir);
         if (segment[0] === 'git' && segment[1] === 'checkout' && segment.length === 3) {
           const ref = spawnSync(
             'git',
             ['show-ref', '--verify', '--quiet', `refs/heads/${segment[2]}`],
-            { cwd: segment === written ? action.cwd : root, timeout: 10000 },
+            { cwd: segment === written ? dir : root, timeout: 10000 },
           );
           if (ref.status !== 0) kind = 'mutation';
         }
       }
     }
-    const read = kind === 'read';
+    // A shell write outside the project passes like an outside file edit.
+    const read = kind === 'read' || kind === 'outside';
     const branch = currentBranch(root);
     const shellParts = action.kind === 'shell' ? commands(action.command) : null;
     // git branch -d refuses a branch that is not merged, so cleanup after a merge ships too.
